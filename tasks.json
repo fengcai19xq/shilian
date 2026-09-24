@@ -1,0 +1,33 @@
+{
+  "project": "航锂智能体",
+  "updated_at": "2026-03-12",
+  "token_budget": {
+    "monthly_cap_cny": 30000,
+    "alert_at_pct": 80,
+    "note": "模型网关按部门与密级统计用量；超 80% 告警，超 100% 自动降级到低成本模型并通知数智化中心"
+  },
+  "phases": [
+    { "id": "P-0", "name": "阶段0 · 前置", "goal": "底座可跑通、词典与评测集就位" },
+    { "id": "P-1", "name": "P0 · 不做不能上线", "goal": "权限、身份、检索、路由、网关" },
+    { "id": "P-2", "name": "P1 · 核心业务价值", "goal": "清单成册闭环与 PC 工作台" },
+    { "id": "P-3", "name": "P2 · 增强与治理", "goal": "决策层、查数、审计" }
+  ],
+  "tasks": [
+    { "id": "T01", "phase": "P-0", "module": "infra", "title": "环境与底座搭建（VPC / K8s / Dify / RAGFlow）", "owner": "数智化中心", "days": 8, "deps": [], "status": "todo", "acceptance": "两套系统内网互通，可上传并检索一份测试文档" },
+    { "id": "T02", "phase": "P-0", "module": "dict", "title": "资料类型词典 v1（80~120 个标准类型）", "owner": "融资部 + 数智化", "days": 5, "deps": [], "status": "todo", "acceptance": "含别名、必备属性（期间/口径/份数/盖章），评审通过" },
+    { "id": "T03", "phase": "P-0", "module": "eval", "title": "黄金评测集（5~8 份历史清单 + 标注答案）", "owner": "融资部", "days": 4, "deps": [], "status": "todo", "acceptance": "每份清单逐项标注正确文件，可用于阈值回归" },
+    { "id": "T04", "phase": "P-1", "module": "retrieval-proxy", "title": "retrieval-proxy 权限过滤中间层", "owner": "后端A", "days": 5, "deps": ["T01"], "status": "todo", "acceptance": "权限四元组翻译为 metadata_condition，越权用例 0 泄露" },
+    { "id": "T05", "phase": "P-1", "module": "gateway", "title": "企微组织架构同步与统一身份", "owner": "后端B", "days": 5, "deps": ["T01"], "status": "todo", "acceptance": "通讯录同步为部门/角色/密级/项目四元组，H5 免登" },
+    { "id": "T06", "phase": "P-1", "module": "retrieval-proxy", "title": "文档上传与密级标注流水线", "owner": "后端A", "days": 6, "deps": ["T01"], "status": "todo", "acceptance": "上传强制选密级与部门，解析失败可见原因" },
+    { "id": "T07", "phase": "P-1", "module": "web", "title": "企业知识问答 + 引用溯源（融资助手）", "owner": "全栈", "days": 8, "deps": ["T04", "T06"], "status": "todo", "acceptance": "每个数字可点角标定位到原文页码" },
+    { "id": "T08", "phase": "P-1", "module": "decide", "title": "问答路由（企业知识 / 通用模型）", "owner": "后端B", "days": 6, "deps": ["T04"], "status": "todo", "acceptance": "库内未命中必须如实告知并二次确认，禁止静默转通用模型" },
+    { "id": "T09", "phase": "P-1", "module": "gateway", "title": "统一模型网关（按密级路由 + 用量限额）", "owner": "后端B", "days": 6, "deps": ["T01"], "status": "todo", "acceptance": "L4 不出 VPC；按部门统计 token 与成本，超额告警" },
+    { "id": "T10", "phase": "P-2", "module": "matcher", "title": "清单成册引擎（解析→匹配→三态确认）", "owner": "后端A", "days": 12, "deps": ["T02", "T03", "T06"], "status": "todo", "acceptance": "假阳性率 < 2%，待确认项可就地处理" },
+    { "id": "T11", "phase": "P-2", "module": "packager", "title": "成册执行器与产物生成（ZIP / 合订PDF / 核对表）", "owner": "后端C", "days": 7, "deps": ["T10"], "status": "todo", "acceptance": "纯函数执行器，manifest 进文件出，可重放可单测" },
+    { "id": "T12", "phase": "P-2", "module": "gateway", "title": "缺件企微派单与回传闭环", "owner": "后端C", "days": 6, "deps": ["T05", "T10"], "status": "todo", "acceptance": "回传自动入库、重匹配、回填清单，逾期提醒" },
+    { "id": "T13", "phase": "P-2", "module": "web", "title": "PC 端三栏工作台前端", "owner": "前端", "days": 12, "deps": ["T07"], "status": "todo", "acceptance": "对照 PC 交互设计 v1.0 的 5 个场景全部可用" },
+    { "id": "T14", "phase": "P-3", "module": "decide", "title": "Jev 决策层接入与 A/B 评测", "owner": "算法", "days": 6, "deps": ["T03", "T10"], "status": "todo", "acceptance": "文档打标与清单匹配两处灰度，效果不劣于 LLM 且成本下降" },
+    { "id": "T15", "phase": "P-3", "module": "gateway", "title": "NL2SQL 经营查数（只读视图 + 指标口径字典）", "owner": "后端B", "days": 10, "deps": ["T09"], "status": "todo", "acceptance": "只读视图，口径字典覆盖首批 20 个指标" },
+    { "id": "T16", "phase": "P-3", "module": "gateway", "title": "治理与审计（RBAC / 全链路审计 / 水印 / 拒答）", "owner": "后端A", "days": 8, "deps": ["T04", "T09"], "status": "todo", "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过" }
+  ]
+}
