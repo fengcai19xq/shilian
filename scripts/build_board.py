@@ -139,7 +139,7 @@ function render(){
             '<span class="bar"><i style="width:' + pct + '%"></i></span>' +
             '<small>' + d + "/" + list.length + '</small></div>' +
             '<table><tr><th>ID</th><th>任务</th><th>模块</th><th>负责</th><th>人日</th>' +
-            '<th class="dep">依赖</th><th>状态</th><th class="acc">验收</th></tr>';
+            '<th class="dep">依赖</th><th>会话</th><th>状态</th><th class="acc">验收</th></tr>';
     list.forEach(function(t){
       var ready = t.deps.every(function(d2){
         var dep = tasks.filter(function(x){return x.id === d2})[0];
@@ -150,7 +150,7 @@ function render(){
         '<td><span class="mod">' + esc(t.module) + "</span></td>" +
         "<td>" + esc(t.owner) + "</td><td>" + t.days + "</td>" +
         '<td class="dep">' + (t.deps.length ? t.deps.join(" ") + (ready ? "" : " ⛔") : "—") + "</td>" +
-        "<td>" + sel(t) + "</td>" +
+        '<td>' + (t.session ? '<a href="' + t.session + '" target="_blank">开发中 ↗</a>' : "—") + "</td><td>" + sel(t) + "</td>" +
         '<td class="acc">' + esc(t.acceptance) + "</td></tr>";
     });
     html += "</table></div>";
