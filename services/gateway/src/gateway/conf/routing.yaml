@@ -1,0 +1,89 @@
+# 密级路由表 / 模型目录 / 预算配置
+# 说明：这里只放通道与价格等非机密配置，密钥一律走环境变量（api_key_env）。
+
+# 密级 -> 允许通道；mask 为 true 表示调用前必须做实体脱敏
+sensitivity_policy:
+  L1:
+    allowed_channels: [public_api, enterprise_api, vpc_self_hosted]
+    mask: false
+  L2:
+    allowed_channels: [enterprise_api, vpc_self_hosted]
+    mask: false
+  L3:
+    allowed_channels: [enterprise_api, vpc_self_hosted]
+    mask: true
+  L4:
+    allowed_channels: [vpc_self_hosted]
+    mask: false
+
+# 模型目录。price_* 为每 1000 token 的人民币价格。
+models:
+  - name: deepseek-v3
+    channel: public_api
+    purposes: [generate, decide]
+    endpoint: https://api.deepseek.example/v1
+    api_key_env: GATEWAY_DEEPSEEK_API_KEY
+    price_prompt_cny_per_1k: 0.002
+    price_completion_cny_per_1k: 0.008
+
+  - name: deepseek-v3-enterprise
+    channel: enterprise_api
+    purposes: [generate, decide]
+    endpoint: https://api.deepseek-enterprise.example/v1
+    api_key_env: GATEWAY_DEEPSEEK_ENTERPRISE_API_KEY
+    price_prompt_cny_per_1k: 0.004
+    price_completion_cny_per_1k: 0.012
+
+  - name: qwen-small-enterprise
+    channel: enterprise_api
+    purposes: [generate, decide]
+    endpoint: https://api.qwen-enterprise.example/v1
+    api_key_env: GATEWAY_QWEN_ENTERPRISE_API_KEY
+    price_prompt_cny_per_1k: 0.0006
+    price_completion_cny_per_1k: 0.0018
+
+  - name: bge-m3-enterprise
+    channel: enterprise_api
+    purposes: [embed, rerank]
+    endpoint: https://api.qwen-enterprise.example/v1
+    api_key_env: GATEWAY_QWEN_ENTERPRISE_API_KEY
+    price_prompt_cny_per_1k: 0.0004
+    price_completion_cny_per_1k: 0.0
+
+  - name: qwen2.5-vpc
+    channel: vpc_self_hosted
+    purposes: [generate, decide]
+    endpoint: http://llm.vpc.internal/v1
+    api_key_env: GATEWAY_VPC_API_KEY
+    price_prompt_cny_per_1k: 0.0005
+    price_completion_cny_per_1k: 0.0005
+
+  - name: bge-m3-vpc
+    channel: vpc_self_hosted
+    purposes: [embed, rerank]
+    endpoint: http://llm.vpc.internal/v1
+    api_key_env: GATEWAY_VPC_API_KEY
+    price_prompt_cny_per_1k: 0.0002
+    price_completion_cny_per_1k: 0.0
+
+# 各 purpose 的默认模型（未指定 preferred_model 时用）
+default_models:
+  generate: deepseek-v3-enterprise
+  decide: qwen-small-enterprise
+  embed: bge-m3-enterprise
+  rerank: bge-m3-enterprise
+
+# 超预算时的低成本模型（按 purpose）
+low_cost_models:
+  generate: qwen-small-enterprise
+  decide: qwen-small-enterprise
+  embed: bge-m3-enterprise
+  rerank: bge-m3-enterprise
+
+budget:
+  warn_ratio: 0.8
+  degrade_ratio: 1.0
+  monthly_cny_default: 2000.0
+  monthly_cny_by_dept:
+    融资部: 3000.0
+    数智化中心: 5000.0

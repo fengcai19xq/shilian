@@ -1,0 +1,18 @@
+# L3 脱敏词表与规则（可配置）
+# literals：按字面量替换的实体词表，一般由主数据同步生成，这里只放示例（非真实客户数据）
+literals:
+  company:
+    - 航锂新能源科技有限公司
+    - 航锂储能
+  customer:
+    - 示例客户甲
+    - 示例客户乙
+
+# patterns：正则规则。顺序即优先级，先匹配的先替换。
+patterns:
+  - name: idcard
+    regex: "\\b\\d{17}[\\dXx]\\b"
+  - name: phone
+    regex: "\\b1[3-9]\\d{9}\\b"
+  - name: amount
+    regex: "(?:[¥￥]\\s?\\d[\\d,]*(?:\\.\\d+)?)|(?:\\d[\\d,]*(?:\\.\\d+)?\\s*(?:万元|亿元|元))"
