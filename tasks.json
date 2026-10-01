@@ -103,7 +103,7 @@
       "deps": [
         "T01"
       ],
-      "status": "blocked",
+      "status": "doing",
       "acceptance": "上传强制选密级与部门，解析失败可见原因",
       "session": "https://app.devin.ai/sessions/ef8c82f39e2640e786454e96db76d446"
     },
@@ -132,7 +132,7 @@
       "deps": [
         "T04"
       ],
-      "status": "blocked",
+      "status": "doing",
       "acceptance": "库内未命中必须如实告知并二次确认，禁止静默转通用模型",
       "session": "https://app.devin.ai/sessions/dce9321b47fd4ee19027905b849e6051"
     },
@@ -146,7 +146,7 @@
       "deps": [
         "T01"
       ],
-      "status": "blocked",
+      "status": "doing",
       "acceptance": "L4 不出 VPC；按部门统计 token 与成本，超额告警",
       "session": "https://app.devin.ai/sessions/7296510a45754085b0e8b5e3be28717f"
     },
@@ -162,7 +162,7 @@
         "T03",
         "T06"
       ],
-      "status": "blocked",
+      "status": "doing",
       "acceptance": "假阳性率 < 2%，待确认项可就地处理",
       "session": "https://app.devin.ai/sessions/7b35d2db95f74148a7469e3cbfa3d872"
     },
@@ -176,7 +176,7 @@
       "deps": [
         "T10"
       ],
-      "status": "blocked",
+      "status": "doing",
       "acceptance": "纯函数执行器，manifest 进文件出，可重放可单测",
       "session": "https://app.devin.ai/sessions/fa0b7f24c5d14bb796ad8a22c26d269a"
     },
@@ -205,7 +205,7 @@
       "deps": [
         "T07"
       ],
-      "status": "blocked",
+      "status": "doing",
       "acceptance": "对照 PC 交互设计 v1.0 的 5 个场景全部可用",
       "session": "https://app.devin.ai/sessions/2ab94849ef904e6691d19859f1c230ad"
     },
