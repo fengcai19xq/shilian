@@ -1,0 +1,64 @@
+# 资料类型词典：std_type -> 标准名称 + 别名
+# 命中别名才归一；词典没有的资料名称一律标 unknown，不猜。
+version: 1
+types:
+  BUSINESS_LICENSE:
+    std_name: 营业执照
+    aliases: [营业执照, 三证合一营业执照, 工商营业执照, 执照副本, 营业执照副本]
+  ARTICLES_OF_ASSOCIATION:
+    std_name: 公司章程
+    aliases: [公司章程, 章程, 最新版公司章程, 现行有效章程, 章程及修正案]
+  AUDIT_REPORT:
+    std_name: 审计报告
+    aliases: [审计报告, 年度审计报告, 财务审计报告, 会计师事务所审计报告, 经审计财务报表]
+  FINANCIAL_STATEMENT:
+    std_name: 财务报表
+    aliases: [财务报表, 资产负债表, 利润表, 现金流量表, 月度财务报表, 管理报表]
+  TAX_RETURN:
+    std_name: 纳税申报表
+    aliases: [纳税申报表, 企业所得税年度申报表, 增值税申报表, 完税证明, 纳税证明]
+  BANK_STATEMENT:
+    std_name: 银行流水
+    aliases: [银行流水, 对公账户流水, 银行对账单, 账户流水明细]
+  CREDIT_REPORT:
+    std_name: 企业征信报告
+    aliases: [企业征信报告, 征信报告, 人民银行征信报告, 信用报告]
+  BOARD_RESOLUTION:
+    std_name: 董事会决议
+    aliases: [董事会决议, 董事会决议文件, 董事会会议纪要决议]
+  SHAREHOLDER_RESOLUTION:
+    std_name: 股东会决议
+    aliases: [股东会决议, 股东大会决议, 股东决定]
+  CAPITAL_VERIFICATION:
+    std_name: 验资报告
+    aliases: [验资报告, 出资证明, 实收资本验资报告]
+  LEGAL_OPINION:
+    std_name: 法律意见书
+    aliases: [法律意见书, 律师意见书, 专项法律意见书]
+  PATENT_CERTIFICATE:
+    std_name: 专利证书
+    aliases: [专利证书, 发明专利证书, 实用新型专利证书, 专利权证书]
+  SOFTWARE_COPYRIGHT:
+    std_name: 软件著作权证书
+    aliases: [软件著作权证书, 软著证书, 计算机软件著作权登记证书]
+  HIGH_TECH_CERTIFICATE:
+    std_name: 高新技术企业证书
+    aliases: [高新技术企业证书, 高新证书, 高企证书]
+  SALES_CONTRACT:
+    std_name: 销售合同
+    aliases: [销售合同, 购销合同, 销售框架协议, 订单合同]
+  PURCHASE_CONTRACT:
+    std_name: 采购合同
+    aliases: [采购合同, 采购框架协议, 供货合同]
+  LEASE_CONTRACT:
+    std_name: 租赁合同
+    aliases: [租赁合同, 房屋租赁合同, 厂房租赁协议]
+  SOCIAL_INSURANCE:
+    std_name: 社保缴纳证明
+    aliases: [社保缴纳证明, 社保证明, 社会保险参保证明, 社保缴费明细]
+  ID_CARD:
+    std_name: 法定代表人身份证明
+    aliases: [法定代表人身份证明, 法人身份证, 法定代表人身份证复印件, 法人证明书]
+  PRODUCT_CERTIFICATION:
+    std_name: 产品认证证书
+    aliases: [产品认证证书, 体系认证证书, ISO认证证书, 质量管理体系认证证书]
