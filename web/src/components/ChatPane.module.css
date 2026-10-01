@@ -1,0 +1,19 @@
+.pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.empty {
+  color: var(--muted);
+  margin-top: 40px;
+  text-align: center;
+}

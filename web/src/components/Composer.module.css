@@ -1,0 +1,29 @@
+.composer {
+  border-top: 1px solid var(--border);
+  padding: 10px 16px 16px;
+  background: #fff;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  resize: none;
+  min-height: 64px;
+}
+
+.send {
+  align-self: flex-end;
+  border: none;
+  background: var(--brand);
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 18px;
+}

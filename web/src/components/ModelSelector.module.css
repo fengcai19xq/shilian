@@ -1,0 +1,35 @@
+.selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.groupLabel { color: var(--muted); }
+
+.option {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.selected { border-color: var(--brand); color: var(--brand); }
+
+.disabled {
+  color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.reason {
+  color: #9ca3af;
+  font-size: 12px;
+}
