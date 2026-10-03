@@ -1,0 +1,20 @@
+:root {
+  --border: #e5e7eb;
+  --bg-soft: #f7f8fa;
+  --text: #1f2329;
+  --muted: #6b7280;
+  --brand: #1f6feb;
+  --green: #15803d;
+  --amber: #b45309;
+  --red: #b91c1c;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; background: var(--bg-soft); }
+
+button { font: inherit; cursor: pointer; }
+
+button:disabled { cursor: not-allowed; }
