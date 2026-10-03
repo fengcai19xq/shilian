@@ -53,3 +53,8 @@ GET  /matcher/checklists/{id}/manifest  导出给 packager 的 manifest
 - 日期比较、份数统计、金额计算一律由代码完成，**不交给模型**
 - 匹配只产生建议，`matched` 之外的状态不得自动入册
 - 每次状态变更写审计事件，人工确认记录操作人
+
+## 补充（只增不改，2026-10）
+
+- `POST /matcher/items/{id}/confirm` 的操作人取自网关注入的请求头 `X-User-Id`，请求体仍为 `{doc_ids, note}`。
+- 硬约束判定依赖候选文档元数据 `period / scope / copies / stamped`，由 retrieval 的 `hits[]` 透传（见 retrieval.md 补充）；缺失字段一律判为不通过。

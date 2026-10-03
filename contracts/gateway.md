@@ -42,3 +42,9 @@
 2. 路由探测检索用 `mode=probe`，`top_k=3`、不 rerank
 3. 相同 query 与相同文档打标结果做缓存，命中直接返回
 4. 上下文按 rerank 后的 top 片段截断，不整篇塞
+
+## 补充（只增不改，2026-10）
+
+- HTTP 路径：`POST /v1/invoke`（gateway 实现）。decide 模块当前调用 `/gateway/invoke`，需对齐为 `/v1/invoke`。
+- `purpose=decide` 返回 `payload`：`{"need_internal_probability": 0.0~1.0}`，可选 `label`。
+- 返回体新增可选字段：`channel`（实际落地通道：`public_api | enterprise_api | vpc_self_hosted`，前端据此显式提示）、`budget_alert`（预算 ≥80% 时的告警文案）。

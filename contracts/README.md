@@ -14,3 +14,4 @@
 | `matching.md` | 清单项、候选、三态与打分 | web / packager |
 | `packaging.md` | manifest 与产物规格 | matcher / web |
 | `gateway.md` | 模型调用、密级路由、用量计费 | 全部 |
+| `decide.md` | 问答路由 `/decide/route` 出参 | decide, web |
