@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "packager"
+version = "0.1.0"
+description = "航锂智能体 —— 成册执行器（纯函数，沙箱内运行）"
+# 目标运行版本为 Python 3.11，代码同时兼容 3.10 以便在低版本环境本地自测
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.6",
+    "pypdf>=5.0",
+    "reportlab>=4.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
