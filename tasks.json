@@ -263,7 +263,7 @@
       "deps": [
         "T10"
       ],
-      "status": "doing",
+      "status": "done",
       "acceptance": "services/matcher 43 个测试用例全部移植为 JUnit 并通过；接口与 contracts/matching.md 一致",
       "session": "https://app.devin.ai/sessions/080635299684458dbe7e71a9cffe8185"
     },
