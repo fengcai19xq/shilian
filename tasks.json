@@ -89,7 +89,7 @@
       "deps": [
         "T01"
       ],
-      "status": "doing",
+      "status": "done",
       "acceptance": "通讯录同步为部门/角色/密级/项目四元组，H5 免登",
       "session": "https://app.devin.ai/sessions/f6e7e7999a2f4f42a24080394276bb70"
     },
