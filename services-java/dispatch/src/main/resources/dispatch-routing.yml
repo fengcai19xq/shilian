@@ -1,0 +1,42 @@
+# 缺件派单规则：资料类型(std_type) → 责任部门 / 负责人
+# 用户 ID 均为脱敏示例，部署时用 DISPATCH_ROUTING_FILE 指向真实配置。
+#
+# 选人优先级：
+#   1. rules 中命中 std_type 的规则（assignee 缺省时取部门 default_assignee，再缺省取部门 head）
+#   2. 清单项自带的 owner_dept（取该部门 default_assignee，缺省取 head）
+#   3. default 规则
+# 超时升级对象一律为所属部门的 head。
+
+departments:
+  finance:
+    name: 财务部
+    head: u_fin_head
+    default_assignee: u_fin_01
+  legal:
+    name: 法务部
+    head: u_legal_head
+    default_assignee: u_legal_01
+  admin:
+    name: 综合管理部
+    head: u_admin_head
+    default_assignee: u_admin_01
+  ehs:
+    name: 安环部
+    head: u_ehs_head
+
+rules:
+  - std_type: AUDIT_REPORT
+    dept: finance
+    assignee: u_fin_audit
+  - std_type: FINANCIAL_STATEMENT
+    dept: finance
+  - std_type: ARTICLES_OF_ASSOCIATION
+    dept: legal
+  - std_type: BUSINESS_LICENSE
+    dept: admin
+  - std_type: EIA_APPROVAL
+    dept: ehs
+    assignee: u_ehs_01
+
+default:
+  dept: admin
