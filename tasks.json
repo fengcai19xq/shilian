@@ -91,7 +91,7 @@
       ],
       "status": "doing",
       "acceptance": "通讯录同步为部门/角色/密级/项目四元组，H5 免登",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/f6e7e7999a2f4f42a24080394276bb70"
     },
     {
       "id": "T06",
@@ -193,7 +193,7 @@
       ],
       "status": "doing",
       "acceptance": "回传自动入库、重匹配、回填清单，逾期提醒",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/43ed732c970b40a4ac323dd34d8ef12b"
     },
     {
       "id": "T13",
@@ -251,7 +251,7 @@
       ],
       "status": "doing",
       "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/ac228ebf756d42b398610fdfbdbfca8c"
     },
     {
       "id": "T17",
@@ -294,7 +294,7 @@
       ],
       "status": "doing",
       "acceptance": "docker compose config 通过；各模块 Dockerfile 可构建；README 含验收清单",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/82022daf95e54138ad6a7aa78abb5b58"
     }
   ]
 }
