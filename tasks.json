@@ -82,14 +82,14 @@
     {
       "id": "T05",
       "phase": "P-1",
-      "module": "gateway",
+      "module": "gateway-java",
       "title": "企微组织架构同步与统一身份",
       "owner": "后端B",
       "days": 5,
       "deps": [
         "T01"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "通讯录同步为部门/角色/密级/项目四元组，H5 免登",
       "session": ""
     },
@@ -183,7 +183,7 @@
     {
       "id": "T12",
       "phase": "P-2",
-      "module": "gateway",
+      "module": "gateway-java",
       "title": "缺件企微派单与回传闭环",
       "owner": "后端C",
       "days": 6,
@@ -191,7 +191,7 @@
         "T05",
         "T10"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "回传自动入库、重匹配、回填清单，逾期提醒",
       "session": ""
     },
@@ -241,7 +241,7 @@
     {
       "id": "T16",
       "phase": "P-3",
-      "module": "gateway",
+      "module": "gateway-java",
       "title": "治理与审计（RBAC / 全链路审计 / 水印 / 拒答）",
       "owner": "后端A",
       "days": 8,
@@ -249,7 +249,7 @@
         "T04",
         "T09"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过",
       "session": ""
     },
@@ -280,6 +280,21 @@
       "status": "done",
       "acceptance": "services/packager 27 个测试用例全部移植为 JUnit 并通过；同一 manifest 产物字节一致",
       "session": "https://app.devin.ai/sessions/3a4b203f6e0848988a5ee53d094c2a40"
+    },
+    {
+      "id": "T19",
+      "phase": "P-0",
+      "module": "deploy",
+      "title": "机房测试环境 docker compose 一键部署",
+      "owner": "运维",
+      "days": 3,
+      "deps": [
+        "T17",
+        "T18"
+      ],
+      "status": "doing",
+      "acceptance": "docker compose config 通过；各模块 Dockerfile 可构建；README 含验收清单",
+      "session": ""
     }
   ]
 }
