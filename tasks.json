@@ -252,6 +252,34 @@
       "status": "todo",
       "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过",
       "session": ""
+    },
+    {
+      "id": "T17",
+      "phase": "P-2",
+      "module": "matcher-java",
+      "title": "清单成册引擎 Java 重写（Spring Boot）",
+      "owner": "后端A",
+      "days": 5,
+      "deps": [
+        "T10"
+      ],
+      "status": "doing",
+      "acceptance": "services/matcher 43 个测试用例全部移植为 JUnit 并通过；接口与 contracts/matching.md 一致",
+      "session": ""
+    },
+    {
+      "id": "T18",
+      "phase": "P-2",
+      "module": "packager-java",
+      "title": "成册执行器 Java 重写（PDFBox / POI）",
+      "owner": "后端B",
+      "days": 4,
+      "deps": [
+        "T11"
+      ],
+      "status": "doing",
+      "acceptance": "services/packager 27 个测试用例全部移植为 JUnit 并通过；同一 manifest 产物字节一致",
+      "session": ""
     }
   ]
 }
