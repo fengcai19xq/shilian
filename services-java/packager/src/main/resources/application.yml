@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: packager
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+packager:
+  storage:
+    # local：挂进沙箱的临时目录；memory：内存实现（联调/演示用）
+    type: local
+    root: ${java.io.tmpdir}/shilian-packager/mnt
+    out-dir: ${java.io.tmpdir}/shilian-packager/out
