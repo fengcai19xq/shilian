@@ -277,7 +277,7 @@
       "deps": [
         "T11"
       ],
-      "status": "doing",
+      "status": "done",
       "acceptance": "services/packager 27 个测试用例全部移植为 JUnit 并通过；同一 manifest 产物字节一致",
       "session": "https://app.devin.ai/sessions/3a4b203f6e0848988a5ee53d094c2a40"
     }
