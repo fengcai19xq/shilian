@@ -101,7 +101,7 @@
       "owner": "后端A",
       "days": 6,
       "deps": [],
-      "status": "doing",
+      "status": "done",
       "acceptance": "Word/PDF/Excel/PPT 上传→解析→切块→入库；强制选密级与部门；解析失败可见原因；本地 fake RAGFlow 可测",
       "session": "https://app.devin.ai/sessions/829f1767644a4870a7c00317b6c82915"
     },
