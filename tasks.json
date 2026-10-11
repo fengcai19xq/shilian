@@ -96,14 +96,14 @@
     {
       "id": "T06",
       "phase": "P-1",
-      "module": "retrieval-proxy",
+      "module": "ingest-java",
       "title": "文档上传、解析与密级标注流水线（RAGFlow 入库）",
       "owner": "后端A",
       "days": 6,
       "deps": [],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "Word/PDF/Excel/PPT 上传→解析→切块→入库；强制选密级与部门；解析失败可见原因；本地 fake RAGFlow 可测",
-      "session": "https://app.devin.ai/sessions/ef8c82f39e2640e786454e96db76d446"
+      "session": "https://app.devin.ai/sessions/829f1767644a4870a7c00317b6c82915"
     },
     {
       "id": "T07",
@@ -116,9 +116,9 @@
         "T04",
         "T06"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "PC 页面提问→权限检索→回答带引用角标，可定位原文页码；库内未命中二次确认",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/0017184de4f84ea6b5bd5e6c7c3dd513"
     },
     {
       "id": "T08",
