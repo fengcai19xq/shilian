@@ -97,14 +97,12 @@
       "id": "T06",
       "phase": "P-1",
       "module": "retrieval-proxy",
-      "title": "文档上传与密级标注流水线",
+      "title": "文档上传、解析与密级标注流水线（RAGFlow 入库）",
       "owner": "后端A",
       "days": 6,
-      "deps": [
-        "T01"
-      ],
+      "deps": [],
       "status": "todo",
-      "acceptance": "上传强制选密级与部门，解析失败可见原因",
+      "acceptance": "Word/PDF/Excel/PPT 上传→解析→切块→入库；强制选密级与部门；解析失败可见原因；本地 fake RAGFlow 可测",
       "session": "https://app.devin.ai/sessions/ef8c82f39e2640e786454e96db76d446"
     },
     {
@@ -119,7 +117,7 @@
         "T06"
       ],
       "status": "todo",
-      "acceptance": "每个数字可点角标定位到原文页码",
+      "acceptance": "PC 页面提问→权限检索→回答带引用角标，可定位原文页码；库内未命中二次确认",
       "session": ""
     },
     {
@@ -191,8 +189,8 @@
         "T05",
         "T10"
       ],
-      "status": "doing",
-      "acceptance": "回传自动入库、重匹配、回填清单，逾期提醒",
+      "status": "blocked",
+      "acceptance": "【延后】IM 入口暂不实现；PR#10 已提交待评审，不合入主线",
       "session": "https://app.devin.ai/sessions/43ed732c970b40a4ac323dd34d8ef12b"
     },
     {
@@ -296,5 +294,6 @@
       "acceptance": "docker compose config 通过；各模块 Dockerfile 可构建；README 含验收清单",
       "session": "https://app.devin.ai/sessions/82022daf95e54138ad6a7aa78abb5b58"
     }
-  ]
+  ],
+  "note": "2026-10-01 方案调整：不接入 WeKnora；IM 入口（企微/飞书）与缺件派单延后；近期主线 = 文档解析入库(T06) → 权限检索(T04) → PC 端对话与引用溯源(T07)。"
 }
