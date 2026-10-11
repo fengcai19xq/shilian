@@ -1,10 +1,10 @@
 // 对话消息模型：对应交互设计的五种消息态
-import type { MatcherTask, RetrievalHit } from '../api/types'
+import type { Channel, MatcherTask, RetrievalHit } from '../api/types'
 
 /** 正文片段：纯文本，或带引用角标的文本（角标可点，右栏定位原文） */
 export type AnswerPart =
   | { type: 'text'; text: string }
-  | { type: 'cite'; text: string; index: number; chunk_id: string }
+  | { type: 'cite'; index: number; chunk_id: string }
 
 export interface UserMessage {
   kind: 'user'
@@ -12,8 +12,16 @@ export interface UserMessage {
   text: string
 }
 
-/** 1. 企业知识命中 */
-export interface KnowledgeHitMessage {
+/** 网关返回的通道信息：switched_reason 存在时必须在回答上方显式提示 */
+export interface GatewayMeta {
+  model: string
+  switched_reason?: string
+  channel?: Channel
+  budget_alert?: string
+}
+
+/** 1. 企业知识命中：hits 为进入 prompt 的片段，角标 [n] 对应 hits[n-1] */
+export interface KnowledgeHitMessage extends GatewayMeta {
   kind: 'kb_hit'
   id: string
   scope_desc: string
@@ -32,12 +40,10 @@ export interface NoHitMessage {
 }
 
 /** 3. 通用问答 */
-export interface GeneralMessage {
+export interface GeneralMessage extends GatewayMeta {
   kind: 'general'
   id: string
-  model: string
   text: string
-  switched_reason?: string
 }
 
 /** 4. 清单成册任务卡 */
@@ -53,6 +59,13 @@ export interface PermissionDeniedMessage {
   id: string
 }
 
+/** 服务调用失败：只展示服务名与状态码 */
+export interface ErrorMessage {
+  kind: 'error'
+  id: string
+  text: string
+}
+
 export type Message =
   | UserMessage
   | KnowledgeHitMessage
@@ -60,16 +73,4 @@ export type Message =
   | GeneralMessage
   | TaskCardMessage
   | PermissionDeniedMessage
-
-/** 把检索命中拼成带引用角标的正文；数字必须挂角标，便于右栏溯源 */
-export function buildAnswerParts(hits: RetrievalHit[]): AnswerPart[] {
-  const parts: AnswerPart[] = [{ type: 'text', text: '最近三年研发费用占营收比例：' }]
-  hits.forEach((hit, i) => {
-    const ratio = hit.text.match(/占营业收入比例\s*([\d.]+%)/)?.[1] ?? '—'
-    const year = hit.text.match(/^(\d{4})\s*年度/)?.[1] ?? ''
-    parts.push({ type: 'text', text: `${i > 0 ? '；' : ''}${year} 年 ` })
-    parts.push({ type: 'cite', text: ratio, index: i + 1, chunk_id: hit.chunk_id })
-  })
-  parts.push({ type: 'text', text: '。' })
-  return parts
-}
+  | ErrorMessage

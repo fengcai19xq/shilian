@@ -8,13 +8,15 @@ describe('库内未命中', () => {
     await ask(user, '公司食堂菜单')
 
     const bubble = await screen.findByTestId('msg-no-hit')
-    expect(within(bubble).getByText(/知识库暂无相关资料/)).toBeInTheDocument()
+    expect(within(bubble).getByText(/知识库中没有依据/)).toBeInTheDocument()
     expect(within(bubble).getByRole('button', { name: '上传资料' })).toBeInTheDocument()
-    expect(api.search).toHaveBeenCalledTimes(1)
+    // decide 判定 kb_empty（已做 probe），不再发 full 检索
+    expect(api.route).toHaveBeenCalledTimes(1)
+    expect(api.search).not.toHaveBeenCalled()
     expect(api.generate).not.toHaveBeenCalled()
 
     // 第一次点击只弹出二次确认，仍不调用
-    await user.click(within(bubble).getByRole('button', { name: '是否改用通用模型回答' }))
+    await user.click(within(bubble).getByRole('button', { name: '改用通用模型回答' }))
     expect(api.generate).not.toHaveBeenCalled()
 
     // 取消后依旧不调用
@@ -28,7 +30,7 @@ describe('库内未命中', () => {
     await ask(user, '公司食堂菜单')
 
     const bubble = await screen.findByTestId('msg-no-hit')
-    await user.click(within(bubble).getByRole('button', { name: '是否改用通用模型回答' }))
+    await user.click(within(bubble).getByRole('button', { name: '改用通用模型回答' }))
     await user.click(within(bubble).getByRole('button', { name: '确认改用通用模型' }))
 
     expect(api.generate).toHaveBeenCalledTimes(1)
@@ -51,8 +53,10 @@ describe('库内未命中', () => {
     })
     await ask(user, '公司食堂菜单')
     const bubble = await screen.findByTestId('msg-no-hit')
-    await user.click(within(bubble).getByRole('button', { name: '是否改用通用模型回答' }))
+    await user.click(within(bubble).getByRole('button', { name: '改用通用模型回答' }))
     await user.click(within(bubble).getByRole('button', { name: '确认改用通用模型' }))
-    expect(await screen.findByText('已切换合规通道：L3 内容不允许通用通道')).toBeInTheDocument()
+    expect(await screen.findByTestId('switched-notice')).toHaveTextContent(
+      '已切换合规通道：L3 内容不允许通用通道 · 实际通道：未标注 · 实际模型：deepseek-v3-enterprise',
+    )
   })
 })

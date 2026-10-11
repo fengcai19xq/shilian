@@ -55,9 +55,13 @@
 .warn { color: var(--red); }
 
 .switched {
-  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
   font-size: 12px;
   color: var(--red);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
 }
 
 .progressOuter {
@@ -88,4 +92,10 @@
   margin-top: 10px;
   font-size: 13px;
   color: var(--muted);
+}
+
+.budget {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--amber);
 }

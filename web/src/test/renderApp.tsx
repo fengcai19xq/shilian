@@ -8,6 +8,7 @@ import { ApiContext, createMockApi, type WorkbenchApi } from '../api'
 export function renderApp(overrides: Partial<WorkbenchApi> = {}) {
   const base = createMockApi()
   const api: WorkbenchApi = {
+    route: vi.fn(base.route),
     search: vi.fn(base.search),
     generate: vi.fn(base.generate),
     listModels: vi.fn(base.listModels),

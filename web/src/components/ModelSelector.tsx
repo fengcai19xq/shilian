@@ -1,4 +1,5 @@
-// 输入区上方的模型选择器：分两组展示，不合规项置灰并写明原因
+// 输入区上方的模型选择器：按 gateway 契约的三类合规通道分组，不合规项置灰并写明原因
+import { CHANNEL_GROUP_TITLE, CHANNEL_ORDER } from '../api/models'
 import type { ModelOption } from '../api/types'
 import styles from './ModelSelector.module.css'
 
@@ -8,17 +9,12 @@ interface Props {
   onSelect: (model: string) => void
 }
 
-const GROUP_LABEL: Record<ModelOption['group'], string> = {
-  general: '通用问答可选',
-  corporate: '涉及公司资料可用',
-}
-
 export default function ModelSelector({ models, selectedModel, onSelect }: Props) {
   return (
     <div className={styles.selector} role="group" aria-label="模型选择器">
-      {(['general', 'corporate'] as const).map((group) => (
+      {CHANNEL_ORDER.map((group) => (
         <div key={group} className={styles.group}>
-          <span className={styles.groupLabel}>{GROUP_LABEL[group]}</span>
+          <span className={styles.groupLabel}>{CHANNEL_GROUP_TITLE[group]}</span>
           {models
             .filter((m) => m.group === group)
             .map((m) => (

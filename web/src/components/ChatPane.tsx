@@ -1,6 +1,7 @@
 // 中栏：对话流 + 输入区
 import type { Workbench } from '../state/useWorkbench'
 import Composer from './Composer'
+import ErrorBubble from './messages/ErrorBubble'
 import GeneralBubble from './messages/GeneralBubble'
 import KnowledgeHitBubble from './messages/KnowledgeHitBubble'
 import NoHitBubble from './messages/NoHitBubble'
@@ -52,6 +53,8 @@ export default function ChatPane({ workbench }: { workbench: Workbench }) {
               )
             case 'permission_denied':
               return <PermissionDeniedBubble key={message.id} />
+            case 'error':
+              return <ErrorBubble key={message.id} message={message} />
           }
         })}
       </div>

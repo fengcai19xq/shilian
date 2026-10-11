@@ -6,12 +6,13 @@ import { mockData } from '../api/mock'
 import { renderApp } from '../test/renderApp'
 
 describe('模型选择器', () => {
-  it('分两组展示，置灰项 disabled 并显示原因，点击不触发选择', async () => {
+  it('按契约三类合规通道分组，置灰项 disabled 并显示原因，点击不触发选择', async () => {
     const onSelect = vi.fn()
     render(<ModelSelector models={mockData.MODELS} selectedModel="deepseek-v3" onSelect={onSelect} />)
 
-    expect(screen.getByText('通用问答可选')).toBeInTheDocument()
-    expect(screen.getByText('涉及公司资料可用')).toBeInTheDocument()
+    expect(screen.getByText('通用公有云（仅 L1 公开资料）')).toBeInTheDocument()
+    expect(screen.getByText('企业版 API（L2/L3，L3 调用前脱敏）')).toBeInTheDocument()
+    expect(screen.getByText('VPC 自部署（可处理 L4）')).toBeInTheDocument()
 
     const gpt = screen.getByRole('button', { name: 'GPT-4o' })
     expect(gpt).toBeDisabled()
