@@ -14,7 +14,7 @@ export default function NoHitBubble({ message, onConfirmFallback }: Props) {
   return (
     <div className={styles.bubble} data-testid="msg-no-hit">
       <div className={styles.banner}>公司相关 · 已检索企业知识库</div>
-      <div>知识库暂无相关资料，未找到可引用的企业文档。</div>
+      <div>知识库中没有依据：未找到可引用的企业文档。</div>
       <div className={styles.actions}>
         <button className={styles.action}>上传资料</button>
         {message.fallback_confirmed ? null : asking ? (
@@ -32,7 +32,7 @@ export default function NoHitBubble({ message, onConfirmFallback }: Props) {
           </>
         ) : (
           <button className={styles.action} onClick={() => setAsking(true)}>
-            是否改用通用模型回答
+            改用通用模型回答
           </button>
         )}
       </div>

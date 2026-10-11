@@ -8,7 +8,9 @@ describe('企业知识命中与引用溯源', () => {
     await ask(user, '最近三年研发费用占营收比例')
     const bubble = await screen.findByTestId('msg-kb-hit')
     expect(bubble).toHaveTextContent('公司相关 · 检索范围：融资部 / 财务共享（你的权限内） · 命中 3 条')
-    expect(api.generate).not.toHaveBeenCalled()
+    expect(api.route).toHaveBeenCalledTimes(1)
+    expect(api.search).toHaveBeenCalledWith(expect.objectContaining({ mode: 'full' }))
+    expect(api.generate).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('right-pane')).toHaveTextContent('暂无引用来源')
   })
 

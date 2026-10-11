@@ -12,9 +12,14 @@ export interface Principal {
   projects: string[]
 }
 
+/** contracts/retrieval.md 补充：无任何授权时 scope_desc 固定为此值，前端只能据此展示权限提示 */
+export const NO_SCOPE_DESC = '（无可检索范围）'
+
 /** POST /retrieval/search 请求体 */
 export interface SearchRequest {
   query: string
+  /** 由会话态回显的权限主体；服务端以网关注入为准 */
+  principal?: Principal
   kb_scope: string[]
   top_k?: number
   score_threshold?: number
@@ -31,6 +36,11 @@ export interface RetrievalHit {
   page: number
   score: number
   text: string
+  /** 补充字段（可选）：期间、口径、份数、是否盖章 */
+  period?: string
+  scope?: string
+  copies?: number
+  stamped?: boolean
 }
 
 /** POST /retrieval/search 返回体 */
@@ -38,22 +48,63 @@ export interface SearchResponse {
   hits: RetrievalHit[]
   scope_desc: string
   total: number
-  /** 权限拒答场景：无权访问时 total 为 0，且不得携带任何越权文档信息 */
-  permission_denied?: boolean
 }
 
-/** contracts/gateway.md 模型调用请求 */
+/** contracts/decide.md POST /decide/route 请求体 */
+export interface RouteRequest {
+  question: string
+  principal?: Principal
+  user_choice?: 'enterprise' | 'general' | 'auto'
+  kb_scope: string[]
+}
+
+export type RouteDecision = 'enterprise' | 'general' | 'kb_empty'
+
+/** contracts/decide.md 路由响应 */
+export interface RouteResponse {
+  decision: RouteDecision
+  reason: string
+  confirm_required: boolean
+  allow_general_fallback: boolean
+  evidence: {
+    source: 'user_choice' | 'entity' | 'probe' | 'decide'
+    matched_entities?: string[]
+    probe_top_score?: number
+    probe_total?: number
+    probe_threshold?: number
+    need_internal_probability?: number
+    decider_backend?: 'rule' | 'jev' | 'llm'
+    decider_fallback_reason?: string | null
+    scope_desc?: string | null
+  }
+}
+
+/** contracts/gateway.md 补充：实际落地通道 */
+export type Channel = 'public_api' | 'enterprise_api' | 'vpc_self_hosted'
+
+export interface ChatTurn {
+  role: 'system' | 'user'
+  content: string
+}
+
+/** contracts/gateway.md 模型调用请求（POST /v1/invoke） */
 export interface GatewayRequest {
   purpose: 'generate' | 'decide' | 'embed' | 'rerank'
   sensitivity: Sensitivity
   preferred_model: string
-  payload: { query: string }
+  /** 通用问答不得携带 principal（contracts/decide.md） */
+  principal?: Pick<Principal, 'user_id' | 'dept'>
+  /** generate 的 payload：原始问题 + 组织好的消息（企业知识问答含命中片段） */
+  payload: { query: string; messages?: ChatTurn[] }
 }
 
 /** contracts/gateway.md 模型调用返回，switched_reason 必须显式提示用户 */
 export interface GatewayResponse {
   model: string
-  switched_reason?: string
+  switched_reason?: string | null
+  channel?: Channel
+  budget_alert?: string | null
+  /** 生成正文（http 客户端从 text / payload.text / payload.content 归一化而来） */
   text: string
   usage: {
     prompt_tokens: number
@@ -62,12 +113,12 @@ export interface GatewayResponse {
   }
 }
 
-/** 模型选择器选项：分「通用问答可选」与「涉及公司资料可用」两组 */
+/** 模型选择器选项：按 contracts/gateway.md 密级路由的三类通道分组 */
 export interface ModelOption {
   model: string
   label: string
-  /** general=通用问答可选；corporate=涉及公司资料可用 */
-  group: 'general' | 'corporate'
+  /** public_api=通用公有云（L1）；enterprise_api=企业版 API（L2/L3）；vpc_self_hosted=VPC 自部署（L4） */
+  group: Channel
   /** 不合规时置灰 */
   disabled: boolean
   /** 置灰原因，例如「未签数据处理协议」 */

@@ -1,8 +1,15 @@
 // 工作台状态：会话、消息流、右栏溯源、模型选择（按会话记忆，不跨会话）
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useApi } from '../api'
-import type { ModelOption, Principal, RetrievalHit } from '../api/types'
-import { buildAnswerParts, type Message } from './messages'
+import { ApiHttpError, useApi } from '../api'
+import {
+  NO_SCOPE_DESC,
+  type GatewayResponse,
+  type ModelOption,
+  type Principal,
+  type RetrievalHit,
+} from '../api/types'
+import { buildEnterpriseMessages, highestSensitivity, parseAnswerParts, selectContext } from './answer'
+import type { GatewayMeta, Message } from './messages'
 
 export interface Conversation {
   conversation_id: string
@@ -23,8 +30,27 @@ const CONVERSATIONS: Conversation[] = [
   { conversation_id: 'cv_2', title: '研发费用占比口径' },
 ]
 
+/** contracts/retrieval.md 默认值：full 模式取 top 8、阈值 0.35 */
+const SEARCH_TOP_K = 8
+const SEARCH_SCORE_THRESHOLD = 0.35
+
 let seq = 0
 const nextId = (prefix: string) => `${prefix}_${++seq}`
+
+function gatewayMeta(answer: GatewayResponse): GatewayMeta {
+  return {
+    model: answer.model,
+    switched_reason: answer.switched_reason ?? undefined,
+    channel: answer.channel,
+    budget_alert: answer.budget_alert ?? undefined,
+  }
+}
+
+/** 错误提示只给服务名与状态码，不透传后端响应内容 */
+function describeError(error: unknown): string {
+  if (error instanceof ApiHttpError) return `${error.service} 服务返回 ${error.status}，请稍后重试`
+  return '服务暂不可用，请稍后重试'
+}
 
 export function useWorkbench() {
   const api = useApi()
@@ -38,7 +64,7 @@ export function useWorkbench() {
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
-    void api.getPrincipal().then(setPrincipal)
+    api.getPrincipal().then(setPrincipal, () => setPrincipal(null))
     void api.listModels().then(setModels)
   }, [api])
 
@@ -65,7 +91,61 @@ export function useWorkbench() {
     [conversationId, models],
   )
 
-  /** 发送提问：先检索，未命中时只如实告知，绝不静默转通用模型 */
+  /** 通用问答：直接走网关，不携带 principal 与任何公司数据 */
+  const answerGeneral = useCallback(
+    async (query: string) => {
+      const answer = await api.generate({
+        purpose: 'generate',
+        sensitivity: 'L1',
+        preferred_model: selectedModel,
+        payload: { query },
+      })
+      append({ kind: 'general', id: nextId('m'), text: answer.text, ...gatewayMeta(answer) })
+    },
+    [api, append, selectedModel],
+  )
+
+  /** 企业知识问答：full 检索 → 命中片段组织 prompt → 网关生成 → 角标溯源 */
+  const answerEnterprise = useCallback(
+    async (query: string) => {
+      const result = await api.search({
+        query,
+        principal: principal ?? undefined,
+        kb_scope: KB_SCOPE,
+        top_k: SEARCH_TOP_K,
+        score_threshold: SEARCH_SCORE_THRESHOLD,
+        mode: 'full',
+      })
+      if (result.scope_desc === NO_SCOPE_DESC) {
+        append({ kind: 'permission_denied', id: nextId('m') })
+        return
+      }
+      if (result.total === 0 || result.hits.length === 0) {
+        append({ kind: 'no_hit', id: nextId('m'), query, fallback_confirmed: false })
+        return
+      }
+      const context = selectContext(result.hits)
+      const answer = await api.generate({
+        purpose: 'generate',
+        sensitivity: highestSensitivity(context),
+        preferred_model: selectedModel,
+        principal: principal ? { user_id: principal.user_id, dept: principal.dept } : undefined,
+        payload: { query, messages: buildEnterpriseMessages(query, context) },
+      })
+      append({
+        kind: 'kb_hit',
+        id: nextId('m'),
+        scope_desc: result.scope_desc,
+        total: result.total,
+        parts: parseAnswerParts(answer.text, context),
+        hits: context,
+        ...gatewayMeta(answer),
+      })
+    },
+    [api, append, principal, selectedModel],
+  )
+
+  /** 发送提问：先经 decide 路由；未命中只如实告知，绝不静默转通用模型 */
   const send = useCallback(
     async (query: string) => {
       const text = query.trim()
@@ -78,28 +158,34 @@ export function useWorkbench() {
           append({ kind: 'task_card', id: nextId('m'), task })
           return
         }
-        const result = await api.search({ query: text, kb_scope: KB_SCOPE, top_k: 8, mode: 'full' })
-        if (result.permission_denied) {
+        const route = await api.route({
+          question: text,
+          principal: principal ?? undefined,
+          user_choice: 'auto',
+          kb_scope: KB_SCOPE,
+        })
+        if (route.evidence?.scope_desc === NO_SCOPE_DESC) {
           append({ kind: 'permission_denied', id: nextId('m') })
           return
         }
-        if (result.total > 0) {
-          append({
-            kind: 'kb_hit',
-            id: nextId('m'),
-            scope_desc: result.scope_desc,
-            total: result.total,
-            parts: buildAnswerParts(result.hits),
-            hits: result.hits,
-          })
-          return
+        switch (route.decision) {
+          case 'general':
+            await answerGeneral(text)
+            return
+          case 'kb_empty':
+            append({ kind: 'no_hit', id: nextId('m'), query: text, fallback_confirmed: false })
+            return
+          case 'enterprise':
+            await answerEnterprise(text)
+            return
         }
-        append({ kind: 'no_hit', id: nextId('m'), query: text, fallback_confirmed: false })
+      } catch (error) {
+        append({ kind: 'error', id: nextId('m'), text: describeError(error) })
       } finally {
         setPending(false)
       }
     },
-    [api, append],
+    [api, append, answerEnterprise, answerGeneral, principal],
   )
 
   /** 用户二次确认后才调用通用模型 */
@@ -113,24 +199,14 @@ export function useWorkbench() {
       }))
       setPending(true)
       try {
-        const answer = await api.generate({
-          purpose: 'generate',
-          sensitivity: 'L1',
-          preferred_model: selectedModel,
-          payload: { query },
-        })
-        append({
-          kind: 'general',
-          id: nextId('m'),
-          model: answer.model,
-          text: answer.text,
-          switched_reason: answer.switched_reason,
-        })
+        await answerGeneral(query)
+      } catch (error) {
+        append({ kind: 'error', id: nextId('m'), text: describeError(error) })
       } finally {
         setPending(false)
       }
     },
-    [api, append, conversationId, selectedModel],
+    [answerGeneral, append, conversationId],
   )
 
   /** 点击引用角标：右栏定位并高亮对应原文片段 */

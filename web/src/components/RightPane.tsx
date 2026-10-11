@@ -1,8 +1,17 @@
 // 右栏：引用溯源 / 产物预览 / 空状态
+import { useEffect, useRef } from 'react'
 import type { RightPaneState } from '../state/useWorkbench'
 import styles from './RightPane.module.css'
 
 export default function RightPane({ state }: { state: RightPaneState }) {
+  const activeRef = useRef<HTMLDivElement | null>(null)
+  const activeChunkId = state.mode === 'source' ? state.active_chunk_id : null
+
+  // 点击角标后滚动定位到对应片段（jsdom 无 scrollIntoView，需判空）
+  useEffect(() => {
+    activeRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+  }, [activeChunkId])
+
   if (state.mode === 'empty') {
     return (
       <aside className={styles.pane} data-testid="right-pane">
@@ -25,17 +34,19 @@ export default function RightPane({ state }: { state: RightPaneState }) {
     <aside className={styles.pane} data-testid="right-pane">
       <div className={styles.title}>引用溯源</div>
       <div className={styles.scope}>检索范围：{state.scope_desc}</div>
-      {state.hits.map((hit) => {
+      {state.hits.map((hit, i) => {
         const active = hit.chunk_id === state.active_chunk_id
         return (
           <div
             key={hit.chunk_id}
+            ref={active ? activeRef : undefined}
             className={`${styles.snippet} ${active ? styles.active : ''}`}
             data-testid={`source-${hit.chunk_id}`}
             data-active={active}
           >
             <div className={styles.meta}>
-              {hit.doc_name} · 第 {hit.page} 页 · {hit.dept} · {hit.sensitivity}
+              <span className={styles.index}>[{i + 1}]</span> {hit.doc_name} · 第 {hit.page} 页 · {hit.dept} ·{' '}
+              <span className={styles.level}>{hit.sensitivity}</span>
             </div>
             <div>{hit.text}</div>
           </div>
