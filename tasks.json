@@ -116,7 +116,7 @@
         "T04",
         "T06"
       ],
-      "status": "doing",
+      "status": "done",
       "acceptance": "PC 页面提问→权限检索→回答带引用角标，可定位原文页码；库内未命中二次确认",
       "session": "https://app.devin.ai/sessions/0017184de4f84ea6b5bd5e6c7c3dd513"
     },

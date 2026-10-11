@@ -48,3 +48,9 @@
 - HTTP 路径：`POST /v1/invoke`（gateway 实现）。decide 模块当前调用 `/gateway/invoke`，需对齐为 `/v1/invoke`。
 - `purpose=decide` 返回 `payload`：`{"need_internal_probability": 0.0~1.0}`，可选 `label`。
 - 返回体新增可选字段：`channel`（实际落地通道：`public_api | enterprise_api | vpc_self_hosted`，前端据此显式提示）、`budget_alert`（预算 ≥80% 时的告警文案）。
+
+## 补充（只增不改，2026-10，T07 对齐）
+
+- `purpose=generate` 的请求：`payload.query`（必填）、`payload.messages`（可选，OpenAI 风格 `[{role, content}]`，企业问答时含编号片段）；响应正文字段统一为顶层 `text`，其余字段（`model`、`channel`、`switched_reason`、`budget_alert`）不变。
+- 模型目录暂无接口，前端用静态目录 `web/src/api/models.ts`；后续如提供 `GET /v1/models` 须返回与密级路由一致的 `channel` 分组。
+- 前端 principal 不由浏览器构造：生产由网关/BFF 按会话态注入，前端只带 `X-User-Id`；`VITE_DEV_PRINCIPAL` 仅本地联调。
