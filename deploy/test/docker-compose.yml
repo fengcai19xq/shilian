@@ -53,6 +53,8 @@ services:
       SPRING_CONFIG_ADDITIONAL_LOCATION: /conf/
       SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 200MB
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 200MB
+    volumes:
+      - ./ingest-application.yml:/conf/application.yml:ro
     networks: [hangli, ragflow]
     restart: unless-stopped
 
