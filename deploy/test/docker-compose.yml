@@ -69,4 +69,4 @@ networks:
   hangli: {}
   ragflow:
     external: true
-    name: ragflow_ragflow
+    name: ${RAGFLOW_NETWORK:-docker_ragflow}

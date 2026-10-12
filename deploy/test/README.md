@@ -19,7 +19,7 @@ docker compose -f docker-compose.yml up -d
 # 首次启动后：浏览器打开 http://<host>/ 注册管理员 → 右上角头像 → API → 生成 API Key
 ```
 
-RAGFlow API 在容器 `ragflow-cpu:9380`，网络名 `ragflow_ragflow`，本目录 compose 以 external 网络接入。
+RAGFlow API 在容器 `ragflow-cpu:9380`，网络名 `docker_ragflow`（目录名_ragflow，可用 RAGFLOW_NETWORK 覆盖），本目录 compose 以 external 网络接入。
 
 ## 2. 仓库服务
 
