@@ -62,6 +62,8 @@ services:
     build:
       context: ../..
       dockerfile: deploy/test/web/Dockerfile
+      args:
+        VITE_DEV_PRINCIPAL: ${WEB_DEV_PRINCIPAL:-{"user_id":"u_fin","name":"融资部测试员","dept":["融资部"],"roles":[],"max_sensitivity":"L2","projects":[]}}
     ports:
       - "${WEB_PORT:-8088}:80"
     depends_on: [decide, retrieval-proxy, gateway, ingest]
