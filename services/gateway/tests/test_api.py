@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 from fastapi.testclient import TestClient
 
 from gateway.api import create_app
@@ -54,3 +55,17 @@ def test_缺密钥返回503(routing_config, masking_config, monkeypatch):
 
 def test_healthz(service):
     assert TestClient(create_app(service)).get("/healthz").json() == {"status": "ok"}
+
+
+def test_上游HTTP错误返回502且不透出上游响应体(service, monkeypatch):
+    def boom(_request):
+        req = httpx.Request("POST", "https://api.example.com/v1/chat/completions")
+        resp = httpx.Response(402, request=req, text='{"error":"Insufficient Balance"}')
+        raise httpx.HTTPStatusError("402", request=req, response=resp)
+
+    monkeypatch.setattr(service, "invoke", boom)
+    client = TestClient(create_app(service))
+    r = client.post("/v1/invoke", json=_body())
+    assert r.status_code == 502
+    assert "402" in r.json()["detail"]
+    assert "Insufficient" not in r.text

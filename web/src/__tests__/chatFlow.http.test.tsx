@@ -93,7 +93,7 @@ describe('路由三态', () => {
     expect(prompt).toContain('问题：最近三年研发费用占营收比例')
   })
 
-  it('general：不检索，直接走网关，且不携带 principal 与公司数据', async () => {
+  it('general：不检索，直接走网关，只带记账身份、不携带公司数据', async () => {
     const { user, callsTo } = renderHttpApp({
       [ROUTE_PATH]: routeReply('general'),
       [INVOKE_PATH]: gatewayReply('Python 列表推导式示例……', { model: 'deepseek-v3' }),
@@ -105,7 +105,7 @@ describe('路由三态', () => {
     expect(callsTo(SEARCH_PATH)).toHaveLength(0)
     const [invoke] = callsTo(INVOKE_PATH)
     expect(invoke.body).toMatchObject({ purpose: 'generate', sensitivity: 'L1', payload: { query: '怎么写列表推导式' } })
-    expect(invoke.body).not.toHaveProperty('principal')
+    expect(Object.keys(invoke.body.principal as object).sort()).toEqual(['dept', 'user_id'])
     expect(invoke.body.payload).not.toHaveProperty('messages')
   })
 
@@ -261,7 +261,7 @@ describe('未命中二次确认', () => {
     const invokes = callsTo(INVOKE_PATH)
     expect(invokes).toHaveLength(1)
     expect(invokes[0].body).toMatchObject({ sensitivity: 'L1', payload: { query: '公司 2019 年团建方案' } })
-    expect(invokes[0].body).not.toHaveProperty('principal')
+    expect(Object.keys(invokes[0].body.principal as object).sort()).toEqual(['dept', 'user_id'])
     expect(within(bubble).queryByRole('button', { name: /通用模型/ })).not.toBeInTheDocument()
   })
 
