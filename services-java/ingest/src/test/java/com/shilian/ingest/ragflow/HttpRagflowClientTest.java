@@ -82,9 +82,10 @@ class HttpRagflowClientTest {
         assertThat(bodies.get(0)).contains("name=\"file\"; filename=\"a.pdf\"");
         assertThat(calls.get(1)).isEqualTo("POST /api/v1/datasets/ds-1/metadata/update");
         JsonNode meta = mapper.readTree(bodies.get(1));
-        assertThat(meta.path("document_ids").get(0).asText()).isEqualTo("doc-1");
-        assertThat(meta.path("updates").path("dept").asText()).isEqualTo("融资部");
-        assertThat(meta.path("updates").path("sensitivity").asText()).isEqualTo("L2");
+        assertThat(meta.path("selector").path("document_ids").get(0).asText()).isEqualTo("doc-1");
+        java.util.Map<String, String> updates = new java.util.HashMap<>();
+        meta.path("updates").forEach(u -> updates.put(u.path("key").asText(), u.path("value").asText()));
+        assertThat(updates).containsEntry("dept", "融资部").containsEntry("sensitivity", "L2");
 
         client.upsertChunks("ds-1", "doc-1", List.of(new RagflowChunk("c1", "正文", 3, Map.of())));
         JsonNode chunk = mapper.readTree(bodies.get(2));

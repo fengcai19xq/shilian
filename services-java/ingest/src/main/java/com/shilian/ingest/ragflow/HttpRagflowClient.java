@@ -68,11 +68,10 @@ public class HttpRagflowClient implements RagflowClient {
         }
         String documentId = docs.get(0).path("id").asText();
 
-        ObjectNode meta = mapper.createObjectNode();
-        metadata.forEach(meta::put);
         ObjectNode update = mapper.createObjectNode();
-        update.putArray("document_ids").add(documentId);
-        update.set("updates", meta);
+        update.putObject("selector").putArray("document_ids").add(documentId);
+        ArrayNode updates = update.putArray("updates");
+        metadata.forEach((k, v) -> updates.addObject().put("key", k).put("value", v));
         send(json("POST", API + "/datasets/" + datasetId + "/metadata/update", update));
         return documentId;
     }

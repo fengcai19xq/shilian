@@ -14,7 +14,7 @@
 ```bash
 git clone --depth 1 --branch v1.0.0-rc1 https://github.com/infiniflow/ragflow.git
 cd ragflow/docker
-printf '\nHF_ENDPOINT=https://hf-mirror.com\nDEVICE=cpu\nMEM_LIMIT=16g\n' >> .env
+printf '\nHF_ENDPOINT=https://hf-mirror.com\nDEVICE=cpu\nMEM_LIMIT=16g\nTEI_MODEL=BAAI/bge-m3\nTEI_BASE_URL=http://tei:80\n' >> .env   # COMPOSE_PROFILES 追加 tei-cpu；TEI_BASE_URL 必填，否则 ragflow-go 默认连 localhost:6380 导致 add chunk 500
 docker compose -f docker-compose.yml up -d
 # 首次启动后：浏览器打开 http://<host>/ 注册管理员 → 右上角头像 → API → 生成 API Key
 ```
