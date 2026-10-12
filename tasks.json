@@ -40,7 +40,7 @@
       "status": "doing",
       "acceptance": "两套系统内网互通，可上传并检索一份测试文档",
       "session": "",
-      "note": "2026-10-12：机房 53 单机测试环境已拉起（Docker、RAGFlow v1.0.0-rc1 CPU + TEI bge-m3、仓库五服务 compose，见 deploy/test/）；云端正式底座仍待定。"
+      "note": "2026-10-12：机房 53 单机测试环境端到端跑通（Docker、RAGFlow v1.0.0-rc1 CPU + TEI bge-m3、仓库五服务 compose，见 deploy/test/）：脱敏 DOCX 上传→ingest 解析→RAGFlow meta_fields→retrieval-proxy 权限检索，smoke.sh 通过；gateway 第三方模型 key 未配置，通用问答待填 key；云端正式底座仍待定。"
     },
     {
       "id": "T02",
@@ -248,9 +248,10 @@
         "T04",
         "T09"
       ],
-      "status": "doing",
+      "status": "blocked",
       "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过",
-      "session": "https://app.devin.ai/sessions/ac228ebf756d42b398610fdfbdbfca8c"
+      "session": "https://app.devin.ai/sessions/ac228ebf756d42b398610fdfbdbfca8c",
+      "note": "按 2026-10 方案调整暂挂起（先聚焦文档解析入库 + PC 对话），子会话未提 PR。"
     },
     {
       "id": "T17",
