@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -11,8 +12,8 @@ import yaml
 from .schemas import Channel, Purpose, Sensitivity
 
 CONF_DIR = Path(__file__).parent / "conf"
-DEFAULT_ROUTING_PATH = CONF_DIR / "routing.yaml"
-DEFAULT_MASKING_PATH = CONF_DIR / "masking.yaml"
+DEFAULT_ROUTING_PATH = Path(os.environ.get("GATEWAY_ROUTING_PATH", CONF_DIR / "routing.yaml"))
+DEFAULT_MASKING_PATH = Path(os.environ.get("GATEWAY_MASKING_PATH", CONF_DIR / "masking.yaml"))
 
 
 @dataclass(frozen=True)
