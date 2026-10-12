@@ -2,5 +2,5 @@
 ingest:
   ragflow:
     dept-datasets:
-      融资部: kb_finance
-      人事部: kb_hr
+      "[融资部]": kb_finance
+      "[人事部]": kb_hr
