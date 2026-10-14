@@ -16,6 +16,7 @@ import com.shilian.ingest.audit.InMemoryAuditSink;
 import com.shilian.ingest.model.DocStatus;
 import com.shilian.ingest.model.Sensitivity;
 import com.shilian.ingest.ragflow.FakeRagflowClient;
+import com.shilian.ingest.ragflow.RagflowClient;
 import com.shilian.ingest.ragflow.RagflowChunk;
 import com.shilian.ingest.store.InMemoryDocumentRepository;
 import com.shilian.ingest.support.Samples;
@@ -39,12 +40,15 @@ class IngestControllerTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
-    @Autowired FakeRagflowClient ragflow;
+    @Autowired RagflowClient ragflowClient;
+    FakeRagflowClient ragflow;
+
     @Autowired InMemoryDocumentRepository repo;
     @Autowired InMemoryAuditSink audit;
 
     @BeforeEach
     void reset() {
+        ragflow = (FakeRagflowClient) ragflowClient;
         ragflow.clear();
         repo.clear();
         audit.clear();
