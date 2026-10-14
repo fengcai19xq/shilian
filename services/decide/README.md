@@ -59,3 +59,32 @@ uvicorn decide.app:app --port 8003
 | `DECIDE_ENTITY_VOCAB` | 空 | 额外实体词，逗号分隔 |
 | `DECIDE_RETRIEVAL_BASE_URL` / `DECIDE_GATEWAY_BASE_URL` | `localhost:8001/8002` | 依赖服务地址 |
 | `DECIDE_HTTP_TIMEOUT` | `5` | HTTP 超时秒数 |
+| `DECIDE_DECIDER_TIMEOUT` | `2` | jev/llm 单次判定超时秒数，超时按降级处理 |
+| `DECIDE_DECIDER_FALLBACK` | `rule` | 判定失败/超时/返回无效时的降级目标；`none` 不降级直接抛错（仅调试） |
+| `DECIDE_DECIDER_SENSITIVITY` | `L2` | 调 gateway 判定时声明的问题密级 |
+| `DECIDE_AB_TRAFFIC_SPLIT` | 空 | 灰度配比 `ab.traffic_split`，如 `rule:80,jev:10,llm:10`；按 user_id 哈希稳定分桶，为空则全量走 `DECIDE_BACKEND` |
+| `DECIDE_AB_SHADOW` | 空 | 影子后端 `ab.shadow`，如 `jev`；非空时主路径固定用 rule 返回，同时调用影子后端只记录对比 |
+| `DECIDE_AB_SHADOW_ASYNC` | `true` | 影子调用放后台线程，不增加响应延迟 |
+| `DECIDE_AB_SALT` | `decide-ab-v1` | 分桶哈希盐，换盐即整体重新洗桶 |
+
+## Jev 接入与灰度（T14）
+
+- `JevDecider` 经 gateway `POST /v1/invoke`（`purpose=decide`、`preferred_model=jev-decide`、principal 只带 `user_id + dept` 用于记账），
+  解析 `payload.need_internal_probability`（0~1，兼容只给 `label`）与可选 `reason`；超时、gateway 异常、返回无效
+  一律按配置降级到 rule，原因写入 `evidence.decider_fallback_reason`（如「jev 调用超时（超过 2s 未返回），已降级到纯规则」）。
+- `evidence.decider_backend` 为实际生效的实现（降级后为 `rule`）。`ab_bucket` 不在契约字段内，只写日志：
+  `decide.routing` 记录 `decide_verdict {...}`（含 ab_bucket、成本、延迟、jev reason），`decide.ab` 记录影子对比
+  `decide_shadow {...}`；日志只记 user_id / 问题的哈希，不落原文。
+
+## A/B 离线评测
+
+```bash
+python -m decide.eval --dataset tests/data/eval_set.jsonl --backends rule,jev,llm            # 表格
+python -m decide.eval --dataset tests/data/eval_set.jsonl --format json --output report.json
+python -m decide.eval --dataset ... --gateway http --gateway-url http://localhost:8002     # 真实 gateway
+```
+
+输出每个后端的 accuracy / precision / recall / f1（以「需要内部资料」为正类）、按类别准确率、整条路由准确率、
+平均成本（取 gateway `usage.cost_cny`，缺失时按 token × 单价估算）、平均/P95 延迟与降级次数。
+`tests/data/eval_set.jsonl` 为 33 条脱敏合成样本（企业问题 12 / 通用问题 11 / 库内无命中 10），T03 黄金集到位后替换。
+默认 `--gateway fake` 使用离线 `SimulatedGateway`（关键词模拟、不联网），**数值只用于验证评测链路，不代表 Jev 真实效果**。

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from decide.ab import build_decider_from_settings
 from decide.clients import (
     GatewayClient,
     HttpGatewayClient,
@@ -11,7 +12,7 @@ from decide.clients import (
     RetrievalClient,
 )
 from decide.config import Settings
-from decide.deciders import Decider, build_decider
+from decide.deciders import Decider
 from decide.models import RouteRequest, RouteResponse
 from decide.routing import RoutingService
 
@@ -28,7 +29,7 @@ def build_service(
         settings.retrieval_base_url, settings.http_timeout_seconds
     )
     gateway = gateway or HttpGatewayClient(settings.gateway_base_url, settings.http_timeout_seconds)
-    decider = decider or build_decider(settings.decider_backend, gateway)
+    decider = decider or build_decider_from_settings(settings, gateway)
     return RoutingService(settings=settings, retrieval=retrieval, decider=decider)
 
 

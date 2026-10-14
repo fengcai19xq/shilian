@@ -84,9 +84,15 @@ class HttpRetrievalClient:
 
 
 class HttpGatewayClient:
-    def __init__(self, base_url: str, timeout: float = 5.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 5.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._transport = transport
 
     def invoke(
         self,
@@ -96,15 +102,16 @@ class HttpGatewayClient:
         principal: Principal,
         preferred_model: str | None = None,
     ) -> dict[str, Any]:
+        # 契约 contracts/gateway.md：principal 只用于按 dept 记账，只传 user_id + dept
         body: dict[str, Any] = {
             "purpose": purpose,
             "sensitivity": sensitivity,
-            "principal": principal.model_dump(mode="json"),
+            "principal": {"user_id": principal.user_id, "dept": list(principal.dept)},
             "payload": payload,
         }
         if preferred_model:
             body["preferred_model"] = preferred_model
-        with httpx.Client(timeout=self._timeout) as client:
-            resp = client.post(f"{self._base_url}/gateway/invoke", json=body)
+        with httpx.Client(timeout=self._timeout, transport=self._transport) as client:
+            resp = client.post(f"{self._base_url}/v1/invoke", json=body)
             resp.raise_for_status()
             return resp.json()

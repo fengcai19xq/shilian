@@ -1,0 +1,33 @@
+{"id": "enterprise-01", "question": "我们公司的差旅报销流程是怎样的", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.82}
+{"id": "enterprise-02", "question": "本公司用章审批需要哪些人签字", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.77}
+{"id": "enterprise-03", "question": "示例客户甲的框架合同什么时候到期", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.71}
+{"id": "enterprise-04", "question": "HL-280A 电芯的出厂检验标准", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.88}
+{"id": "enterprise-05", "question": "PRJ-2026-DEMO 项目当前的里程碑节点", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.69}
+{"id": "enterprise-06", "question": "供应商准入制度里对资质的要求有哪些", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.91}
+{"id": "enterprise-07", "question": "研发中心今年的产能规划", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.64}
+{"id": "enterprise-08", "question": "内部考勤规定迟到怎么处理", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.79}
+{"id": "enterprise-09", "question": "财务共享中心月结的截止日期", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.73}
+{"id": "enterprise-10", "question": "咱们的年假怎么申请", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.66}
+{"id": "enterprise-11", "question": "示例项目乙的报价单审批到哪一步了", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.6}
+{"id": "enterprise-12", "question": "公司电芯涂布工艺的关键参数控制范围", "category": "enterprise", "need_internal": true, "expected_decision": "enterprise", "probe_top_score": 0.85}
+{"id": "general-01", "question": "锂离子电池的工作原理是什么", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.21}
+{"id": "general-02", "question": "帮我写一首关于春天的诗", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.02}
+{"id": "general-03", "question": "把这句话翻译成英文：今天开会延期", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.05}
+{"id": "general-04", "question": "Python 里列表和元组的区别", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.08}
+{"id": "general-05", "question": "讲一个程序员的笑话", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.01}
+{"id": "general-06", "question": "番茄炒蛋的菜谱", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.0}
+{"id": "general-07", "question": "明天上海天气怎么样", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.03}
+{"id": "general-08", "question": "历史上第一块锂电池是谁发明的", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.18}
+{"id": "general-09", "question": "什么是磷酸铁锂", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.24}
+{"id": "general-10", "question": "Excel 怎么做数据透视表", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.11}
+{"id": "general-11", "question": "增值税的定义", "category": "general", "need_internal": false, "expected_decision": "general", "probe_top_score": 0.15}
+{"id": "kb_miss-01", "question": "我们公司去年给示例客户丙的报价是多少", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.31}
+{"id": "kb_miss-02", "question": "本公司新员工试用期工资怎么算", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.22}
+{"id": "kb_miss-03", "question": "内部审计发现的问题整改到哪一步了", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.28}
+{"id": "kb_miss-04", "question": "咱们和示例供应商丁的合同违约条款", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.19}
+{"id": "kb_miss-05", "question": "我们部门的报销额度标准", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.35}
+{"id": "kb_miss-06", "question": "公司今年的年报披露时间安排", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.26}
+{"id": "kb_miss-07", "question": "示例项目戊的验收流程", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.12}
+{"id": "kb_miss-08", "question": "本公司加班审批规定", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.3}
+{"id": "kb_miss-09", "question": "我们工厂二季度产能利用率", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.17}
+{"id": "kb_miss-10", "question": "客户投诉处理的内部流程是什么", "category": "kb_miss", "need_internal": true, "expected_decision": "kb_empty", "probe_top_score": 0.33}
