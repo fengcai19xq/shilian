@@ -219,23 +219,23 @@
         "T03",
         "T10"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "文档打标与清单匹配两处灰度，效果不劣于 LLM 且成本下降",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/728667882e884081b4ba22c5e49e6e6b"
     },
     {
       "id": "T15",
       "phase": "P-3",
-      "module": "gateway",
+      "module": "nl2sql-java",
       "title": "NL2SQL 经营查数（只读视图 + 指标口径字典）",
       "owner": "后端B",
       "days": 10,
       "deps": [
         "T09"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "只读视图，口径字典覆盖首批 20 个指标",
-      "session": ""
+      "session": "https://app.devin.ai/sessions/61d4035e652a4e5b98d60aeaeb8965f3"
     },
     {
       "id": "T16",
