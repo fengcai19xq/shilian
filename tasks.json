@@ -219,9 +219,10 @@
         "T03",
         "T10"
       ],
-      "status": "doing",
+      "status": "completed",
       "acceptance": "文档打标与清单匹配两处灰度，效果不劣于 LLM 且成本下降",
-      "session": "https://app.devin.ai/sessions/728667882e884081b4ba22c5e49e6e6b"
+      "session": "https://app.devin.ai/sessions/728667882e884081b4ba22c5e49e6e6b",
+      "pr": "https://github.com/fengcai19xq/shilian/pull/14"
     },
     {
       "id": "T15",
@@ -233,9 +234,10 @@
       "deps": [
         "T09"
       ],
-      "status": "doing",
+      "status": "blocked",
       "acceptance": "只读视图，口径字典覆盖首批 20 个指标",
-      "session": "https://app.devin.ai/sessions/61d4035e652a4e5b98d60aeaeb8965f3"
+      "session": "https://app.devin.ai/sessions/61d4035e652a4e5b98d60aeaeb8965f3",
+      "note": "子会话 out_of_quota 挂起，待额度"
     },
     {
       "id": "T16",
@@ -251,7 +253,7 @@
       "status": "blocked",
       "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过",
       "session": "https://app.devin.ai/sessions/ac228ebf756d42b398610fdfbdbfca8c",
-      "note": "按 2026-10 方案调整暂挂起（先聚焦文档解析入库 + PC 对话），子会话未提 PR。"
+      "note": "子会话 out_of_quota 挂起，待额度"
     },
     {
       "id": "T17",
