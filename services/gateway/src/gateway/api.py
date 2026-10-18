@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .clients.openai_compatible import MissingApiKeyError
 from .router import NoEligibleModelError
-from .schemas import InvokeRequest, InvokeResponse
+from .schemas import InvokeRequest, InvokeResponse, Principal
 from .service import GatewayService
 
 _service: GatewayService | None = None
@@ -21,6 +21,9 @@ def get_service() -> GatewayService:
     if _service is None:
         _service = GatewayService()
     return _service
+
+
+ANONYMOUS_USER = "anonymous"
 
 
 def create_app(service: GatewayService | None = None) -> FastAPI:
@@ -35,8 +38,12 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
 
     @app.post("/v1/invoke", response_model=InvokeResponse)
     def invoke(
-        request: InvokeRequest, svc: Annotated[GatewayService, Depends(get_service)]
+        request: InvokeRequest,
+        svc: Annotated[GatewayService, Depends(get_service)],
+        x_user_id: Annotated[str | None, Header()] = None,
     ) -> InvokeResponse:
+        if request.principal is None:
+            request.principal = Principal(user_id=x_user_id or ANONYMOUS_USER)
         try:
             return svc.invoke(request)
         except NoEligibleModelError as exc:

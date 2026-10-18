@@ -76,7 +76,11 @@ class GatewayService:
         budget_after = self.budget_guard.check(dept)
 
         if decision.switched_reason:
-            logger.info("模型切换：%s（user=%s）", decision.switched_reason, request.principal.user_id)
+            logger.info(
+                "模型切换：%s（user=%s）",
+                decision.switched_reason,
+                request.principal.user_id if request.principal else None,
+            )
 
         return InvokeResponse(
             model=decision.model.name,
@@ -90,4 +94,6 @@ class GatewayService:
     @staticmethod
     def _billing_dept(request: InvokeRequest) -> str:
         """出账部门取主部门（principal.dept 的第一个），避免同一次调用重复计费。"""
-        return request.principal.dept[0] if request.principal.dept else UNKNOWN_DEPT
+        if request.principal is None or not request.principal.dept:
+            return UNKNOWN_DEPT
+        return request.principal.dept[0]
