@@ -105,7 +105,8 @@ describe('路由三态', () => {
     expect(callsTo(SEARCH_PATH)).toHaveLength(0)
     const [invoke] = callsTo(INVOKE_PATH)
     expect(invoke.body).toMatchObject({ purpose: 'generate', sensitivity: 'L1', payload: { query: '怎么写列表推导式' } })
-    expect(Object.keys(invoke.body.principal as object).sort()).toEqual(['dept', 'user_id'])
+    expect(invoke.body).not.toHaveProperty('principal')
+    expect(invoke.headers['X-User-Id']).toBe('u_10231')
     expect(invoke.body.payload).not.toHaveProperty('messages')
   })
 
@@ -261,7 +262,7 @@ describe('未命中二次确认', () => {
     const invokes = callsTo(INVOKE_PATH)
     expect(invokes).toHaveLength(1)
     expect(invokes[0].body).toMatchObject({ sensitivity: 'L1', payload: { query: '公司 2019 年团建方案' } })
-    expect(Object.keys(invokes[0].body.principal as object).sort()).toEqual(['dept', 'user_id'])
+    expect(invokes[0].body).not.toHaveProperty('principal')
     expect(within(bubble).queryByRole('button', { name: /通用模型/ })).not.toBeInTheDocument()
   })
 

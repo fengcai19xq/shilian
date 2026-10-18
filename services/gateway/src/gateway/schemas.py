@@ -47,7 +47,7 @@ class InvokeRequest(BaseModel):
     purpose: Purpose
     sensitivity: Sensitivity
     preferred_model: str | None = None
-    principal: Principal
+    principal: Principal | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 

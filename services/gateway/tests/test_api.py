@@ -69,3 +69,11 @@ def test_上游HTTP错误返回502且不透出上游响应体(service, monkeypat
     assert r.status_code == 502
     assert "402" in r.json()["detail"]
     assert "Insufficient" not in r.text
+
+
+def test_principal可选_缺省取X_User_Id头或匿名(service):
+    client = TestClient(create_app(service))
+    body = _body(sensitivity="L1")
+    body.pop("principal")
+    assert client.post("/v1/invoke", json=body, headers={"X-User-Id": "u_hdr"}).status_code == 200
+    assert client.post("/v1/invoke", json=body).status_code == 200

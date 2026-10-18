@@ -54,3 +54,4 @@
 - `purpose=generate` 的请求：`payload.query`（必填）、`payload.messages`（可选，OpenAI 风格 `[{role, content}]`，企业问答时含编号片段）；响应正文字段统一为顶层 `text`，其余字段（`model`、`channel`、`switched_reason`、`budget_alert`）不变。
 - 模型目录暂无接口，前端用静态目录 `web/src/api/models.ts`；后续如提供 `GET /v1/models` 须返回与密级路由一致的 `channel` 分组。
 - 前端 principal 不由浏览器构造：生产由网关/BFF 按会话态注入，前端只带 `X-User-Id`；`VITE_DEV_PRINCIPAL` 仅本地联调。
+- `principal` 可选：缺省时网关取 `X-User-Id` 头构造（dept 为空，按 `unknown` 部门记账），无头则按 `anonymous`；通用问答（decide=general）按 decide.md 不携带 principal。
