@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from decide.clients import ProbeResult
@@ -58,10 +59,14 @@ class FakeDecider:
 
 class FakeGateway:
     def __init__(
-        self, response: dict[str, Any] | None = None, error: Exception | None = None
+        self,
+        response: dict[str, Any] | None = None,
+        error: Exception | None = None,
+        delay: float = 0.0,
     ) -> None:
         self.response = response or {}
         self.error = error
+        self.delay = delay
         self.calls: list[dict[str, Any]] = []
 
     def invoke(
@@ -81,6 +86,8 @@ class FakeGateway:
                 "preferred_model": preferred_model,
             }
         )
+        if self.delay:
+            time.sleep(self.delay)
         if self.error:
             raise self.error
         return self.response

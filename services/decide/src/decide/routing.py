@@ -5,9 +5,13 @@
 
 from __future__ import annotations
 
+import json
+import logging
+
+from decide.ab import short_hash
 from decide.clients import ProbeResult, RetrievalClient
 from decide.config import Settings
-from decide.deciders import Decider, normalize_question
+from decide.deciders import Decider, DecideResult, normalize_question
 from decide.entities import EntityMatcher
 from decide.models import (
     RouteDecision,
@@ -16,6 +20,8 @@ from decide.models import (
     RouteResponse,
     UserChoice,
 )
+
+logger = logging.getLogger("decide.routing")
 
 
 class RoutingService:
@@ -77,6 +83,7 @@ class RoutingService:
 
         # 4. 低于阈值 → 判定「是否需要公司内部资料才能回答」
         verdict = self._decider.decide(question, request.principal)
+        _log_verdict(verdict, request)
         evidence = RouteEvidence(
             source="decide",
             probe_top_score=top_score,
@@ -114,6 +121,29 @@ class RoutingService:
         except Exception:  # noqa: BLE001
             # 检索不可用时按「未命中」处理，后续判定决定是 kb_empty 还是 general
             return ProbeResult(top_score=None, total=0, scope_desc=None)
+
+
+def _log_verdict(verdict: DecideResult, request: RouteRequest) -> None:
+    """ab_bucket 等不在契约 evidence 中的灰度信息只写日志；不记录问题原文。"""
+    usage = verdict.usage or {}
+    logger.info(
+        "decide_verdict %s",
+        json.dumps(
+            {
+                "user_hash": short_hash(request.principal.user_id),
+                "decider_backend": verdict.backend,
+                "ab_bucket": verdict.ab_bucket,
+                "need_internal_probability": verdict.need_internal_probability,
+                "decider_fallback_reason": verdict.fallback_reason,
+                "decider_reason": verdict.reason,
+                "model": verdict.model,
+                "switched_reason": verdict.switched_reason,
+                "cost_cny": usage.get("cost_cny"),
+                "latency_ms": verdict.latency_ms,
+            },
+            ensure_ascii=False,
+        ),
+    )
 
 
 def _general_response(reason: str, evidence: RouteEvidence) -> RouteResponse:
