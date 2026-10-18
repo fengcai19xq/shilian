@@ -91,18 +91,19 @@ export function useWorkbench() {
     [conversationId, models],
   )
 
-  /** 通用问答：直接走网关，不携带 principal 与任何公司数据 */
+  /** 通用问答：直接走网关，只带记账所需身份，不携带任何公司数据 */
   const answerGeneral = useCallback(
     async (query: string) => {
       const answer = await api.generate({
         purpose: 'generate',
         sensitivity: 'L1',
         preferred_model: selectedModel,
+        principal: principal ? { user_id: principal.user_id, dept: principal.dept } : undefined,
         payload: { query },
       })
       append({ kind: 'general', id: nextId('m'), text: answer.text, ...gatewayMeta(answer) })
     },
-    [api, append, selectedModel],
+    [api, append, principal, selectedModel],
   )
 
   /** 企业知识问答：full 检索 → 命中片段组织 prompt → 网关生成 → 角标溯源 */

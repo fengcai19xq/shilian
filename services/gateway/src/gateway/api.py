@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException
 
 from .clients.openai_compatible import MissingApiKeyError
@@ -42,6 +43,13 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except MissingApiKeyError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"上游模型服务返回 {exc.response.status_code}，请检查账户额度或密钥",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="上游模型服务不可达") from exc
 
     return app
 

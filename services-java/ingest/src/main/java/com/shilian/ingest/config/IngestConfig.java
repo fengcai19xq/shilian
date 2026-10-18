@@ -4,6 +4,8 @@ import com.shilian.ingest.audit.InMemoryAuditSink;
 import com.shilian.ingest.chunk.Chunker;
 import com.shilian.ingest.parse.DocumentParser;
 import com.shilian.ingest.ragflow.FakeRagflowClient;
+import com.shilian.ingest.ragflow.HttpRagflowClient;
+import com.shilian.ingest.ragflow.RagflowClient;
 import com.shilian.ingest.store.InMemoryDocumentRepository;
 import java.time.Clock;
 import java.util.concurrent.Executor;
@@ -24,10 +26,14 @@ public class IngestConfig {
         return new InMemoryAuditSink();
     }
 
-    /** TODO(T06-real)：换成真实 RAGFlow HTTP 客户端，凭据取自 ingest.ragflow.*。 */
+    /** 配置了 RAGFLOW_BASE_URL 时走真实 HTTP 客户端，否则用内存实现（本地与单测）。 */
     @Bean
-    public FakeRagflowClient ragflowClient() {
-        return new FakeRagflowClient();
+    public RagflowClient ragflowClient(IngestProperties props) {
+        String baseUrl = props.ragflow().baseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return new FakeRagflowClient();
+        }
+        return new HttpRagflowClient(baseUrl, props.ragflow().apiKey());
     }
 
     @Bean

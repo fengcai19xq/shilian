@@ -44,3 +44,11 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+def create_app_from_env() -> FastAPI:
+    """部署入口：`uvicorn retrieval_proxy.app:create_app_from_env --factory`，RAGFlow 地址与密钥来自环境变量。"""
+    from .ragflow import HttpRagflowClient
+
+    set_dependencies(HttpRagflowClient.from_env())
+    return app

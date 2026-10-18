@@ -1,0 +1,77 @@
+# 机房测试环境：仓库服务一组。RAGFlow 用官方 compose 单独拉起（见 README），通过 ragflow_ragflow 网络互通。
+name: hangli
+
+services:
+  retrieval-proxy:
+    build:
+      context: ../..
+      dockerfile: deploy/test/python-service.Dockerfile
+      args: { SERVICE: retrieval-proxy, MODULE: "retrieval_proxy.app:create_app_from_env --factory" }
+    environment:
+      RAGFLOW_BASE_URL: ${RAGFLOW_BASE_URL:-http://ragflow-cpu:9380}
+      RAGFLOW_API_KEY: ${RAGFLOW_API_KEY}
+    networks: [hangli, ragflow]
+    restart: unless-stopped
+
+  decide:
+    build:
+      context: ../..
+      dockerfile: deploy/test/python-service.Dockerfile
+      args: { SERVICE: decide, MODULE: "decide.app:app" }
+    environment:
+      DECIDE_RETRIEVAL_BASE_URL: http://retrieval-proxy:8000
+      DECIDE_BACKEND: ${DECIDE_BACKEND:-rule}
+      DECIDE_ENTITY_VOCAB: ${DECIDE_ENTITY_VOCAB:-}
+    depends_on: [retrieval-proxy]
+    networks: [hangli]
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/test/python-service.Dockerfile
+      args: { SERVICE: gateway, MODULE: "gateway.api:app" }
+    environment:
+      GATEWAY_ROUTING_PATH: /conf/routing.yaml
+      GATEWAY_DEEPSEEK_API_KEY: ${GATEWAY_DEEPSEEK_API_KEY:-}
+      GATEWAY_DEEPSEEK_ENTERPRISE_API_KEY: ${GATEWAY_DEEPSEEK_ENTERPRISE_API_KEY:-}
+      GATEWAY_QWEN_ENTERPRISE_API_KEY: ${GATEWAY_QWEN_ENTERPRISE_API_KEY:-}
+      GATEWAY_VPC_API_KEY: ${GATEWAY_VPC_API_KEY:-}
+    volumes:
+      - ./gateway-routing.yaml:/conf/routing.yaml:ro
+    networks: [hangli]
+    restart: unless-stopped
+
+  ingest:
+    build:
+      context: ../..
+      dockerfile: deploy/test/ingest.Dockerfile
+    environment:
+      RAGFLOW_BASE_URL: ${RAGFLOW_BASE_URL:-http://ragflow-cpu:9380}
+      RAGFLOW_API_KEY: ${RAGFLOW_API_KEY}
+      RAGFLOW_DEFAULT_DATASET: ${RAGFLOW_DEFAULT_DATASET:-kb_default}
+      SPRING_CONFIG_ADDITIONAL_LOCATION: /conf/
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 200MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 200MB
+    volumes:
+      - ./ingest-application.yml:/conf/application.yml:ro
+    networks: [hangli, ragflow]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/test/web/Dockerfile
+      args:
+        VITE_DEV_PRINCIPAL: ${WEB_DEV_PRINCIPAL:-{"user_id":"u_fin","name":"融资部测试员","dept":["融资部"],"roles":[],"max_sensitivity":"L2","projects":[]}}
+    ports:
+      - "${WEB_PORT:-8088}:80"
+    depends_on: [decide, retrieval-proxy, gateway, ingest]
+    networks: [hangli]
+    restart: unless-stopped
+
+networks:
+  hangli: {}
+  ragflow:
+    external: true
+    name: ${RAGFLOW_NETWORK:-docker_ragflow}

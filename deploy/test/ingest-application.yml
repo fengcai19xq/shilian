@@ -1,0 +1,6 @@
+# ingest 测试环境附加配置（SPRING_CONFIG_ADDITIONAL_LOCATION 挂载）。部门 -> RAGFlow 数据集；未列出的部门落到 RAGFLOW_DEFAULT_DATASET
+ingest:
+  ragflow:
+    dept-datasets:
+      "[融资部]": kb_finance
+      "[人事部]": kb_hr
