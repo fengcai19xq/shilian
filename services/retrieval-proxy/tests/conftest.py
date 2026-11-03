@@ -6,6 +6,7 @@ import pytest
 
 from retrieval_proxy.audit import InMemoryAuditSink
 from retrieval_proxy.models import Principal
+from retrieval_proxy.backends import BackendChunk, BackendQuery
 from retrieval_proxy.ragflow import RagflowChunk, RagflowQuery
 
 # 测试数据全部为脱敏虚构数据
@@ -78,7 +79,7 @@ UNAUTHORIZED_DOC_NAMES = [
 
 
 class FakeRagflowClient:
-    """假 RAGFlow：记录收到的请求。
+    """假后端：实现 RetrievalBackend SPI，记录收到的请求。
 
     `honor_condition=False` 时故意忽略 metadata_condition、返回包含越权文档的原始结果，
     用来验证返回体不泄露越权文档。
@@ -89,14 +90,14 @@ class FakeRagflowClient:
         self._honor_condition = honor_condition
         self.calls: list[RagflowQuery] = []
 
-    def retrieve(self, query: RagflowQuery) -> list[RagflowChunk]:
+    def retrieve(self, query: BackendQuery) -> list[BackendChunk]:
         self.calls.append(query)
         if not self._honor_condition:
             return list(self._chunks)
         return [c for c in self._chunks if self._match(c, query)][: query.top_k]
 
     @staticmethod
-    def _match(chunk: RagflowChunk, query: RagflowQuery) -> bool:
+    def _match(chunk: BackendChunk, query: BackendQuery) -> bool:
         """按 metadata_condition 在“检索侧”过滤，模拟 RAGFlow 的行为。"""
         for cond in query.metadata_condition.get("conditions", []):
             value = {

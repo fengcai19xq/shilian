@@ -1,12 +1,17 @@
-"""把权限四元组翻译为 RAGFlow 的 metadata_condition。
+"""把权限主体翻译为各后端的下推条件。
 
-红线：过滤条件必须随检索请求一起下发给 RAGFlow，禁止先取结果再过滤。
+红线：过滤条件必须随检索请求一起下发给后端，禁止先取结果再过滤。
+
+两套方言并存：
+- `build_metadata_condition` → RAGFlow（dept / sensitivity / project 的 IN 条件）
+- `build_backend_scope`     → WeKnora（密级+部门复合编码进 KB 名，project 进 tag 名）
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from .kb_encoding import VisibleScope, build_scope
 from .models import SENSITIVITY_ORDER, Principal
 
 
@@ -43,3 +48,17 @@ def build_metadata_condition(principal: Principal) -> dict[str, Any]:
 def has_any_access(principal: Principal, kb_scope: list[str]) -> bool:
     """无部门授权或无可检索知识库时，视为完全无权，直接返回空结果、不发检索请求。"""
     return bool(principal.dept) and bool(kb_scope)
+
+
+def build_backend_scope(principal: Principal) -> VisibleScope:
+    """构造 WeKnora 侧的可见范围：KB 名列表 + 项目标签名列表。
+
+    tenant 取 principal.tenant（单租户时为 default）。`knowledge_ids` 由
+    VisibleScope 恒为空保证——它与 KB 取并集会绕开密级隔离（spike 陷阱 1）。
+    """
+    return build_scope(
+        principal.tenant,
+        principal.dept,
+        principal.max_sensitivity,
+        principal.projects,
+    )

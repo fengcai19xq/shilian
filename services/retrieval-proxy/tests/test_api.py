@@ -53,6 +53,11 @@ def test_检索接口返回契约字段() -> None:
         "page",
         "score",
         "text",
+        # contracts/retrieval.md 补充（2026-10）：供 matcher 硬约束的可选元数据
+        "period",
+        "scope",
+        "copies",
+        "stamped",
     }
     assert len(audit.events) == 1
 

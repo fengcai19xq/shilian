@@ -1,18 +1,22 @@
-"""检索服务：权限翻译 -> 检索前过滤 -> 结果整形 -> 审计。"""
+"""检索服务：权限翻译 -> 检索前过滤 -> 结果整形 -> 审计。
+
+后端通过 RetrievalBackend SPI 注入（RAGFlow / WeKnora 各一 adapter），
+本文件与后端方言无关；权限的下推形态由 adapter 各自负责。
+"""
 
 from __future__ import annotations
 
 from .audit import AuditEvent, AuditSink
+from .backends import BackendChunk, BackendQuery, RetrievalBackend
 from .models import PROBE_TOP_K, Hit, Principal, SearchRequest, SearchResponse
-from .permissions import build_metadata_condition, expand_sensitivity, has_any_access
-from .ragflow import RagflowChunk, RagflowClient, RagflowQuery
+from .permissions import build_backend_scope, build_metadata_condition, expand_sensitivity, has_any_access
 
 
 class RetrievalService:
-    """对外唯一入口；RAGFlow 客户端与审计写出都由外部注入。"""
+    """对外唯一入口；检索后端与审计写出都由外部注入。"""
 
-    def __init__(self, client: RagflowClient, audit_sink: AuditSink) -> None:
-        self._client = client
+    def __init__(self, backend: RetrievalBackend, audit_sink: AuditSink) -> None:
+        self._backend = backend
         self._audit = audit_sink
 
     def search(self, request: SearchRequest) -> SearchResponse:
@@ -25,18 +29,24 @@ class RetrievalService:
             return SearchResponse(hits=[], scope_desc=scope_desc, total=0)
 
         is_probe = request.mode == "probe"
-        query = RagflowQuery(
+        # 两套下推方言同时构造：RAGFlow 用 metadata_condition，WeKnora 用 KB 名 + tag 名，
+        # adapter 各取所需，多余的字段被忽略
+        scope = build_backend_scope(principal)
+        query = BackendQuery(
             question=request.query,
-            kb_ids=list(request.kb_scope),
+            kb_scope=list(request.kb_scope),
             top_k=PROBE_TOP_K if is_probe else request.top_k,
             similarity_threshold=request.score_threshold,
             rerank=not is_probe,
-            # 权限条件随检索请求一起下发，过滤发生在 RAGFlow 侧，不做后过滤
+            principal=principal,
+            # 权限条件随检索请求一起下发，过滤发生在后端内部，不做后过滤
             metadata_condition=build_metadata_condition(principal),
+            visible_kb_names=scope.knowledge_base_ids,
+            tag_names=scope.tag_names,
         )
-        chunks = self._client.retrieve(query)
+        chunks = self._backend.retrieve(query)
 
-        # 兜底校验：即使下游忽略了 metadata_condition，越权片段也不会进入返回体。
+        # 兜底校验：即使下游忽略了下推条件，越权片段也不会进入返回体。
         # 这是防御性冗余，不是主过滤手段——主过滤始终在检索请求里完成。
         allowed = [c for c in chunks if self._is_allowed(c, principal)]
         if is_probe:
@@ -48,7 +58,7 @@ class RetrievalService:
         return SearchResponse(hits=hits, scope_desc=scope_desc, total=len(hits))
 
     @staticmethod
-    def _is_allowed(chunk: RagflowChunk, principal: Principal) -> bool:
+    def _is_allowed(chunk: BackendChunk, principal: Principal) -> bool:
         if chunk.dept not in principal.dept:
             return False
         if chunk.sensitivity not in expand_sensitivity(principal.max_sensitivity):
@@ -58,7 +68,7 @@ class RetrievalService:
         return True
 
     @staticmethod
-    def _to_hit(chunk: RagflowChunk) -> Hit:
+    def _to_hit(chunk: BackendChunk) -> Hit:
         return Hit(
             chunk_id=chunk.chunk_id,
             doc_id=chunk.doc_id,
@@ -68,6 +78,10 @@ class RetrievalService:
             page=chunk.page,
             score=chunk.score,
             text=chunk.text,
+            period=chunk.period,
+            scope=chunk.scope,
+            copies=chunk.copies,
+            stamped=chunk.stamped,
         )
 
     @staticmethod

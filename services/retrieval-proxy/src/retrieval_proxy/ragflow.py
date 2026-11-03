@@ -12,6 +12,11 @@ from typing import Any, Protocol
 
 import httpx
 
+from .backends import BackendChunk
+
+# 结果类型统一到 SPI（字段名保持一致，新增元数据字段带默认值）
+RagflowChunk = BackendChunk
+
 
 @dataclass(frozen=True)
 class RagflowQuery:
@@ -23,21 +28,6 @@ class RagflowQuery:
     similarity_threshold: float
     rerank: bool
     metadata_condition: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
-class RagflowChunk:
-    """RAGFlow 返回的原始片段。"""
-
-    chunk_id: str
-    doc_id: str
-    doc_name: str
-    dept: str
-    sensitivity: str
-    score: float
-    text: str
-    page: int | None = None
-    project: str | None = None
 
 
 class RagflowClient(Protocol):
