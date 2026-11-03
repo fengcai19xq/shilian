@@ -1,5 +1,6 @@
-// 左栏：新建对话 / 我的智能体 / 任务中心 / 知识库 / 历史会话 / 当前用户与部门
+// 左栏：新建对话 / 我的智能体 / 任务中心 / 知识库 / 平台管理面 / 历史会话 / 当前用户与部门
 import type { Conversation } from '../state/useWorkbench'
+import type { AdminConsoleEntry } from '../api/adminConsole'
 import type { Principal } from '../api/types'
 import styles from './LeftSidebar.module.css'
 
@@ -11,6 +12,8 @@ interface Props {
   conversationId: string
   onNewConversation: () => void
   onSwitchConversation: (id: string) => void
+  /** 平台管理面入口；url 为空时不渲染（未接入 WeKnora 的部署） */
+  adminConsole?: AdminConsoleEntry
 }
 
 export default function LeftSidebar({
@@ -19,6 +22,7 @@ export default function LeftSidebar({
   conversationId,
   onNewConversation,
   onSwitchConversation,
+  adminConsole,
 }: Props) {
   return (
     <nav className={styles.sidebar} aria-label="侧边导航">
@@ -40,6 +44,22 @@ export default function LeftSidebar({
         <button className={styles.item}>任务中心</button>
         <button className={styles.item}>知识库</button>
       </section>
+
+      {adminConsole?.url ? (
+        <section>
+          <div className={styles.groupTitle}>平台</div>
+          <a
+            className={styles.item}
+            href={adminConsole.url}
+            target="_blank"
+            rel="noreferrer"
+            title={adminConsole.hint}
+            data-testid="admin-console-entry"
+          >
+            {adminConsole.label} ↗
+          </a>
+        </section>
+      ) : null}
 
       <section>
         <div className={styles.groupTitle}>历史会话</div>

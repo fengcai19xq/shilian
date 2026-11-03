@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_USER_ID?: string
   /** 本地联调用的权限主体 JSON（生产由网关按会话态注入） */
   readonly VITE_DEV_PRINCIPAL?: string
+  /** 平台管理面（WeKnora 原生 UI）入口：同域反代路径或完整 URL；留空则不显示入口（WK12） */
+  readonly VITE_WEKNORA_CONSOLE_URL?: string
 }
 
 interface ImportMeta {

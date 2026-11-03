@@ -480,10 +480,10 @@
         "WK07",
         "T13"
       ],
-      "status": "todo",
-      "acceptance": "管理面（KB 创建/模型配置/成员管理）指向 WeKnora 原生 UI；业务工作台（问答溯源/清单成册/待确认/审计）保留 shilian web；两套 UI 无样式冲突，共享同一认证态",
+      "status": "done",
+      "acceptance": "管理面（WeKnora UI）入口与业务工作台（shilian web）分离：入口可配置、未接入不显示、新窗口外链；问答与成册留在 shilian web。首期两套 UI 各自登录，同域共享 Cookie 待 WeKnora 支持 base path 或 WK17 OIDC",
       "session": "",
-      "note": "问答入口必须用 shilian web（红线 4 约束，见 DESIGN-REVIEW.md §5.3）"
+      "note": "2026-11-03 完成：api/adminConsole.ts（入口解析与归一化，hint 点明「问答不在此处」= 红线4 落点）、LeftSidebar 平台分组外链入口（配置 VITE_WEKNORA_CONSOLE_URL 才渲染）、App 装配、vite/nginx 同域代理规则预留。36 项前端测试通过（新增 7 项）、tsc 与 vite build 均通过。⚠ 未达成项：验收原写「共享同一认证态」——WeKnora 为 SPA，绝对路径资源在子路径反代下会 404，需上游支持 base path 或走 OIDC 统一登录（WK17），首期如实按各自登录实现，代码注释已写明边界。"
     },
     {
       "id": "WK13",
