@@ -11,6 +11,10 @@ import com.shilian.wecomsync.store.InMemoryUserRepository;
 import com.shilian.wecomsync.store.UserRepository;
 import com.shilian.wecomsync.wecom.FakeWecomClient;
 import com.shilian.wecomsync.wecom.WecomClient;
+import com.shilian.wecomsync.weknora.FakeWeknoraIdentityClient;
+import com.shilian.wecomsync.weknora.HttpWeknoraIdentityClient;
+import com.shilian.wecomsync.weknora.ProjectionProperties;
+import com.shilian.wecomsync.weknora.WeknoraIdentityClient;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -64,5 +68,20 @@ public class WecomSyncConfig {
     public PrincipalResolver principalResolver(
             @Value("${identity.default-max-sensitivity:L2}") String defaultMaxSensitivity) {
         return new PrincipalResolver(defaultMaxSensitivity);
+    }
+
+    /**
+     * WeKnora 身份客户端（WK14）：weknora.enabled 且凭据齐备时走真实 HTTP，
+     * 否则退回内存实现并置为不可用——此时投影只出计划、不触碰后端。
+     */
+    @Bean
+    @ConditionalOnMissingBean(WeknoraIdentityClient.class)
+    public WeknoraIdentityClient weknoraIdentityClient(ProjectionProperties props) {
+        if (props.active()) {
+            return new HttpWeknoraIdentityClient(props.baseUrl(), props.apiKey(), props.tenantId());
+        }
+        FakeWeknoraIdentityClient offline = new FakeWeknoraIdentityClient();
+        offline.setAvailable(false);
+        return offline;
     }
 }

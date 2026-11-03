@@ -31,6 +31,11 @@ mvn spring-boot:run              # 默认端口 8020（WECOM_SYNC_PORT），自�
 | `WECOM_BASE_URL` | 企微 API 地址 | `https://qyapi.weixin.qq.com` |
 | `IDENTITY_DEFAULT_MAX_SENSITIVITY` | 无授权时的密级上限 | `L2` |
 | `WECOM_SYNC_PORT` | 服务端口 | `8020` |
+| `WEKNORA_PROJECTION_ENABLED` | 是否启用 WeKnora 身份投影（WK14） | `false` |
+| `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` | WeKnora 地址与空间级 Key（需 manage_kbs 能力） | 空 |
+| `WEKNORA_TENANT_ID` | WeKnora 空间 ID（X-Tenant-ID） | 空 |
+| `WEKNORA_TENANT` | KB 命名用租户命名空间，须与 ingest / 检索侧同值 | `default` |
+| `WEKNORA_ADMIN_ROLES` / `WEKNORA_CONTRIBUTOR_ROLES` | 角色映射，未命中一律 viewer | `financing_manager,it_admin` / `financing_staff` |
 
 ## 接口
 
@@ -125,9 +130,21 @@ JSON 字段统一 snake_case。错误体统一为 `{"error": "<code>", "message"
 
 `source` 取值：`wecom_sync`（同步触发）或 `grant`（人工授权）。默认审计出口是内存实现，后续接入审计模块时替换 `AuditSink` 即可。
 
+### `POST /identity/weknora/project[?dry_run=true&dept=X&dept=Y]` 投影到 WeKnora（WK14）
+
+把本地身份单向投影到 WeKnora：按 `租户 × 部门 × 4 密级` 预置 KB，并把在职成员投影为空间成员。
+
+- 与 `/identity/sync` 解耦：需在同步成功后显式调用；`dept` 留空时取全部在职成员所在部门。
+- `dry_run=true`（或后端未 `WEKNORA_PROJECTION_ENABLED` + 凭据未就绪）时只返回计划、不触碰后端。
+- 投影失败**不回滚**本地同步，失败项在 `failures` 数组逐条返回（`kb:<名>` / `member:<id>`）。
+- 角色映射取最小权限：命中 `WEKNORA_ADMIN_ROLES`→`admin`、命中 `WEKNORA_CONTRIBUTOR_ROLES`→`contributor`，其余（含无授权）一律 `viewer`，绝不因“同步过”放权。
+- **离职成员暂不移除**：WeKnora 成员/离职端点尚未现场核对，`removeMember` 默认拒绝下发，避免向真实环境盲发写请求。核对后放开即生效。
+- KB 名与 `ingest`、`retrieval-proxy` 三处共用同一 `KbEncoding`，任何一处偏离都会造成“入库成功但检索查不到”的静默漏料，由 `KbEncodingTest` 钉死。
+
 ## 未完成 / 后续
 
 - 真实企微 HTTP 客户端（access_token 缓存、限流重试）尚未实现，目前只有接口和 fake。
+- WeKnora 空间成员 / 离职端点待现场核对；核对完成后置 `HttpWeknoraIdentityClient.membersEnabled=true` 并放开投影。
 - 企微通讯录变更回调（验签、解密）尚未接入；回调方拿到变更的 userid 后，调用 `incremental` 同步即可。
 - 存储和审计都是内存实现，重启即丢失；需要替换为数据库实现和审计模块。
 - 人工授权表没有操作人字段，接口也没有鉴权，应只在内网由网关调用。
