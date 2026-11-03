@@ -1,0 +1,24 @@
+[project]
+name = "shilian-weknora-spike"
+version = "0.1.0"
+description = "WeKnora 融合验证：KB 权限编码 + gateway OpenAI 兼容 shim（spike，不入生产）"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["spike", "spike.weknora", "spike.weknora.tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["spike/weknora/tests"]
+addopts = "-q"

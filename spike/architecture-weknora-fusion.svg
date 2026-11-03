@@ -1,0 +1,302 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1180" viewBox="0 0 1680 1180" font-family="-apple-system,'PingFang SC','Microsoft YaHei',Helvetica,Arial,sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7d"/>
+    </marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/>
+    </marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f7a4d"/>
+    </marker>
+    <marker id="arrDash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8a6d1f"/>
+    </marker>
+  </defs>
+
+  <rect width="1680" height="1180" fill="#f7f8fa"/>
+
+  <!-- Title -->
+  <text x="40" y="46" font-size="26" font-weight="700" fill="#1c2733">shilian × WeKnora 融合架构（v1 · 评审稿）</text>
+  <text x="40" y="74" font-size="14" fill="#5b6b7d">定位：多租户 · 可扩展 · 合规敏感型知识底座　｜　原则：不改 WeKnora 的 Go 代码，用协议对接、把它包成可插拔后端</text>
+  <rect x="40" y="86" width="1600" height="2" fill="#d7dee6"/>
+
+  <!-- ============ Legend ============ -->
+  <g transform="translate(1180,100)">
+    <rect width="460" height="86" rx="6" fill="#ffffff" stroke="#d7dee6"/>
+    <text x="14" y="22" font-size="13" font-weight="700" fill="#1c2733">图例</text>
+    <line x1="14" y1="40" x2="54" y2="40" stroke="#5b6b7d" stroke-width="2.5" marker-end="url(#arr)"/>
+    <text x="62" y="44" font-size="12" fill="#40505f">同步调用</text>
+    <line x1="150" y1="40" x2="190" y2="40" stroke="#1f7a4d" stroke-width="2.5" marker-end="url(#arrGreen)"/>
+    <text x="198" y="44" font-size="12" fill="#40505f">权限/过滤下推</text>
+    <line x1="300" y1="40" x2="340" y2="40" stroke="#c0392b" stroke-width="2.5" marker-end="url(#arrRed)"/>
+    <text x="348" y="44" font-size="12" fill="#40505f">安全红线</text>
+    <line x1="14" y1="66" x2="54" y2="66" stroke="#8a6d1f" stroke-width="2.5" stroke-dasharray="6 4" marker-end="url(#arrDash)"/>
+    <text x="62" y="70" font-size="12" fill="#40505f">模型流量（必经网关）</text>
+    <rect x="240" y="58" width="14" height="14" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="262" y="70" font-size="12" fill="#40505f">WeKnora（上游，不改码）</text>
+  </g>
+
+  <!-- ============ Clients ============ -->
+  <g transform="translate(40,200)">
+    <text x="0" y="-10" font-size="15" font-weight="700" fill="#1c2733">① 入口层</text>
+    <rect width="300" height="150" rx="8" fill="#ffffff" stroke="#9fb3c8" stroke-width="1.5"/>
+    <rect width="300" height="30" rx="8" fill="#eef4f9"/>
+    <text x="14" y="21" font-size="14" font-weight="700" fill="#1c2733">终端用户入口</text>
+
+    <rect x="16" y="44" width="126" height="44" rx="5" fill="#fff8e6" stroke="#c9a227"/>
+    <text x="79" y="63" font-size="12" font-weight="700" fill="#7a5c00" text-anchor="middle">shilian web</text>
+    <text x="79" y="79" font-size="10" fill="#8a6d1f" text-anchor="middle">业务工作台（必用）</text>
+
+    <rect x="158" y="44" width="126" height="44" rx="5" fill="#eef4f9" stroke="#9fb3c8"/>
+    <text x="221" y="63" font-size="12" font-weight="700" fill="#40505f" text-anchor="middle">WeKnora UI</text>
+    <text x="221" y="79" font-size="10" fill="#5b6b7d" text-anchor="middle">仅管理面</text>
+
+    <rect x="16" y="98" width="126" height="38" rx="5" fill="#f2f5f8" stroke="#c3cfdb"/>
+    <text x="79" y="121" font-size="11" fill="#40505f" text-anchor="middle">企微 / 飞书 / 钉钉</text>
+    <rect x="158" y="98" width="126" height="38" rx="5" fill="#f2f5f8" stroke="#c3cfdb"/>
+    <text x="221" y="121" font-size="11" fill="#40505f" text-anchor="middle">MCP 客户端 / SDK</text>
+  </g>
+
+  <!-- ============ shilian control plane ============ -->
+  <g transform="translate(400,200)">
+    <text x="0" y="-10" font-size="15" font-weight="700" fill="#1c2733">② shilian 控制面（自有，承载全部红线）</text>
+    <rect width="740" height="330" rx="8" fill="#ffffff" stroke="#3d6ea5" stroke-width="1.8"/>
+    <rect width="740" height="30" rx="8" fill="#eaf2fb"/>
+    <text x="14" y="21" font-size="14" font-weight="700" fill="#1c2733">shilian services（Python 薄层 + Java 业务服务）</text>
+
+    <!-- retrieval-proxy -->
+    <rect x="16" y="44" width="230" height="120" rx="6" fill="#e9f5ee" stroke="#1f7a4d" stroke-width="1.5"/>
+    <text x="131" y="64" font-size="13" font-weight="700" fill="#14532f" text-anchor="middle">retrieval-proxy　:8010</text>
+    <text x="131" y="82" font-size="10.5" fill="#2c6b47" text-anchor="middle">权限四元组 + tenant 过滤</text>
+    <text x="131" y="98" font-size="10.5" fill="#2c6b47" text-anchor="middle">RetrievalBackend SPI</text>
+    <rect x="30" y="108" width="94" height="26" rx="4" fill="#ffffff" stroke="#7fae95"/>
+    <text x="77" y="125" font-size="10" fill="#2c6b47" text-anchor="middle">WeKnora 适配器</text>
+    <rect x="132" y="108" width="94" height="26" rx="4" fill="#ffffff" stroke="#7fae95"/>
+    <text x="179" y="125" font-size="10" fill="#2c6b47" text-anchor="middle">RAGFlow 适配器</text>
+    <text x="131" y="152" font-size="9.5" fill="#c0392b" text-anchor="middle" font-weight="700">红线1：过滤随检索请求下发</text>
+
+    <!-- kb-encoding -->
+    <rect x="258" y="44" width="220" height="120" rx="6" fill="#eef4f9" stroke="#3d6ea5" stroke-width="1.5"/>
+    <text x="368" y="64" font-size="13" font-weight="700" fill="#1c3d5a" text-anchor="middle">KB 权限编码（新增）</text>
+    <text x="368" y="83" font-size="10.5" fill="#2c5478" text-anchor="middle">tenant×密级×部门 → KB</text>
+    <text x="368" y="99" font-size="10.5" fill="#2c5478" text-anchor="middle">project → tag_ids</text>
+    <text x="368" y="115" font-size="10.5" fill="#2c5478" text-anchor="middle">knowledge_ids 恒为空</text>
+    <text x="368" y="136" font-size="9.5" fill="#8a6d1f" text-anchor="middle">spike/weknora/kb_encoding.py</text>
+    <text x="368" y="152" font-size="9.5" fill="#1f7a4d" text-anchor="middle" font-weight="700">26 项测试通过</text>
+
+    <!-- gateway -->
+    <rect x="490" y="44" width="234" height="120" rx="6" fill="#fdeeee" stroke="#c0392b" stroke-width="1.5"/>
+    <text x="607" y="64" font-size="13" font-weight="700" fill="#7c2418" text-anchor="middle">gateway　:8000</text>
+    <text x="607" y="82" font-size="10.5" fill="#9c3b2e" text-anchor="middle">密级路由 · L3 脱敏 · 出账</text>
+    <text x="607" y="98" font-size="10.5" fill="#9c3b2e" text-anchor="middle">新增 OpenAI 兼容入口</text>
+    <text x="607" y="114" font-size="10.5" fill="#9c3b2e" text-anchor="middle">switched_reason 必带</text>
+    <text x="607" y="136" font-size="9.5" fill="#7c2418" text-anchor="middle">spike/weknora/gateway_shim.py</text>
+    <text x="607" y="152" font-size="9.5" fill="#c0392b" text-anchor="middle" font-weight="700">红线3/4：不出VPC · 显式提示</text>
+
+    <!-- ingest -->
+    <rect x="16" y="178" width="230" height="66" rx="6" fill="#f4f0fa" stroke="#6a4fa3" stroke-width="1.5"/>
+    <text x="131" y="198" font-size="12.5" font-weight="700" fill="#3f2c68" text-anchor="middle">ingest（Java）　:8030</text>
+    <text x="131" y="215" font-size="10.5" fill="#5a4487" text-anchor="middle">密级标注 · held_l4 · 审计</text>
+    <text x="131" y="232" font-size="10" fill="#5a4487" text-anchor="middle">解析委托 docreader</text>
+
+    <!-- matcher/packager -->
+    <rect x="258" y="178" width="220" height="66" rx="6" fill="#f4f0fa" stroke="#6a4fa3" stroke-width="1.5"/>
+    <text x="368" y="198" font-size="12.5" font-weight="700" fill="#3f2c68" text-anchor="middle">matcher / packager</text>
+    <text x="368" y="215" font-size="10.5" fill="#5a4487" text-anchor="middle">三态匹配 · 成册沙箱</text>
+    <text x="368" y="232" font-size="10" fill="#5a4487" text-anchor="middle">保持独立，不塞进 Skill</text>
+
+    <!-- identity/audit -->
+    <rect x="490" y="178" width="234" height="66" rx="6" fill="#f4f0fa" stroke="#6a4fa3" stroke-width="1.5"/>
+    <text x="607" y="198" font-size="12.5" font-weight="700" fill="#3f2c68" text-anchor="middle">身份 / 审计 / 计量</text>
+    <text x="607" y="215" font-size="10.5" fill="#5a4487" text-anchor="middle">OIDC 身份源可配 · 外部主体令牌</text>
+    <text x="607" y="232" font-size="10" fill="#5a4487" text-anchor="middle">tenant 维度出账</text>
+
+    <!-- key binding note -->
+    <rect x="16" y="258" width="708" height="56" rx="6" fill="#fff8e6" stroke="#c9a227"/>
+    <text x="30" y="278" font-size="11.5" font-weight="700" fill="#7a5c00">关键对齐：一把模型接入密钥 = (tenant, dept, 密级)</text>
+    <text x="30" y="296" font-size="11" fill="#8a6d1f">WeKnora 的模型配置是 KB 级的，而每个 KB 已按密级切分 → 「密级」这个 WeKnora 没有的概念被编码进它的模型配置维度。</text>
+    <text x="30" y="310" font-size="10.5" fill="#a05a00">密级由密钥决定，请求体无法伪造（已有测试覆盖 test_body_cannot_override_sensitivity）。</text>
+  </g>
+
+  <!-- ============ WeKnora ============ -->
+  <g transform="translate(1200,200)">
+    <text x="0" y="-10" font-size="15" font-weight="700" fill="#1c2733">③ WeKnora（上游，零改动）</text>
+    <rect width="440" height="330" rx="8" fill="#fbfdff" stroke="#3d6ea5" stroke-width="1.8" stroke-dasharray="0"/>
+    <rect width="440" height="30" rx="8" fill="#eaf2fb"/>
+    <text x="14" y="21" font-size="14" font-weight="700" fill="#1c2733">app（Go）　:8080</text>
+
+    <rect x="16" y="44" width="196" height="52" rx="5" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="114" y="65" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">knowledge-search</text>
+    <text x="114" y="82" font-size="10" fill="#2c5478" text-anchor="middle">tag_ids / kb_ids 过滤</text>
+
+    <rect x="228" y="44" width="196" height="52" rx="5" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="326" y="65" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">chat / agent-chat</text>
+    <text x="326" y="82" font-size="10" fill="#2c5478" text-anchor="middle">SSE 流式问答</text>
+
+    <rect x="16" y="108" width="196" height="52" rx="5" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="114" y="129" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">空间 / RBAC / API Key</text>
+    <text x="114" y="146" font-size="10" fill="#2c5478" text-anchor="middle">capability + KB 白名单</text>
+
+    <rect x="228" y="108" width="196" height="52" rx="5" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="326" y="129" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">Wiki / 记忆 / 数据源</text>
+    <text x="326" y="146" font-size="10" fill="#2c5478" text-anchor="middle">辅助标注候选来源</text>
+
+    <rect x="16" y="172" width="408" height="44" rx="5" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="220" y="191" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">docreader（Python · gRPC :50051）</text>
+    <text x="220" y="207" font-size="10" fill="#2c5478" text-anchor="middle">25+ 格式解析 · 支持 mTLS + GRPC_AUTH_TOKEN</text>
+
+    <rect x="16" y="228" width="408" height="42" rx="5" fill="#f2f5f8" stroke="#9fb3c8"/>
+    <text x="220" y="247" font-size="11.5" font-weight="700" fill="#40505f" text-anchor="middle">ParadeDB（PG17 + BM25 + pgvector）· Redis/Asynq</text>
+    <text x="220" y="263" font-size="10" fill="#5b6b7d" text-anchor="middle">默认引擎，单库完成全文+向量检索</text>
+
+    <rect x="16" y="282" width="408" height="34" rx="5" fill="#fdeeee" stroke="#c0392b"/>
+    <text x="220" y="304" font-size="10.5" font-weight="700" fill="#7c2418" text-anchor="middle">⚠ 锁版本 · 跟踪 advisory · 8080 不暴露公网 · SSRF 白名单</text>
+  </g>
+
+  <!-- ============ Model providers ============ -->
+  <g transform="translate(1200,570)">
+    <text x="0" y="-10" font-size="15" font-weight="700" fill="#1c2733">④ 模型通道（按密级隔离）</text>
+    <rect width="440" height="130" rx="8" fill="#ffffff" stroke="#c0392b" stroke-width="1.5"/>
+    <rect x="16" y="16" width="128" height="46" rx="5" fill="#eef4f9" stroke="#3d6ea5"/>
+    <text x="80" y="35" font-size="11" font-weight="700" fill="#1c3d5a" text-anchor="middle">公有云 API</text>
+    <text x="80" y="51" font-size="10" fill="#2c5478" text-anchor="middle">仅 L1</text>
+    <rect x="156" y="16" width="128" height="46" rx="5" fill="#fff8e6" stroke="#c9a227"/>
+    <text x="220" y="35" font-size="11" font-weight="700" fill="#7a5c00" text-anchor="middle">企业版 API</text>
+    <text x="220" y="51" font-size="10" fill="#8a6d1f" text-anchor="middle">L2 / L3（脱敏后）</text>
+    <rect x="296" y="16" width="128" height="46" rx="5" fill="#fdeeee" stroke="#c0392b"/>
+    <text x="360" y="35" font-size="11" font-weight="700" fill="#7c2418" text-anchor="middle">VPC 自部署</text>
+    <text x="360" y="51" font-size="10" fill="#9c3b2e" text-anchor="middle">L4 唯一通道</text>
+    <text x="220" y="86" font-size="11" fill="#5b6b7d" text-anchor="middle">WeKnora 只认「自定义 OpenAI 兼容厂商」，实际后端由 gateway 决定</text>
+    <text x="220" y="106" font-size="11" fill="#5b6b7d" text-anchor="middle">超预算自动降级到低成本模型 · 按 tenant+dept+purpose+model 出账</text>
+  </g>
+
+  <!-- ============ Arrows ============ -->
+  <!-- users -> shilian control plane -->
+  <path d="M340,266 L392,266" stroke="#5b6b7d" stroke-width="2.2" fill="none" marker-end="url(#arr)"/>
+  <text x="366" y="258" font-size="10" fill="#5b6b7d" text-anchor="middle">HTTP</text>
+
+  <!-- KB 权限编码 -> WeKnora knowledge-search：过滤条件随检索请求一起下推（红线1）
+       走控制面顶部空白通道（y=236）与面板间竖直通道（x=1162），不穿过任何子框 -->
+  <path d="M768,244 L768,236 L1162,236 L1162,282 L1196,282" stroke="#1f7a4d" stroke-width="2.6" fill="none" marker-end="url(#arrGreen)"/>
+  <rect x="778" y="230" width="368" height="13" fill="#ffffff"/>
+  <text x="962" y="240" font-size="10" font-weight="700" fill="#1f7a4d" text-anchor="middle">检索请求携带 kb_ids + tag_ids（过滤下推，非取回后筛选）</text>
+
+  <!-- WeKnora -> gateway shim（模型流量，必经网关） -->
+  <path d="M1200,320 L1130,320" stroke="#8a6d1f" stroke-width="2.6" fill="none" stroke-dasharray="7 4" marker-end="url(#arrDash)"/>
+  <text x="1166" y="336" font-size="10" font-weight="700" fill="#8a6d1f" text-anchor="middle">LLM/embedding</text>
+
+  <!-- gateway -> model providers（走 x=1162 竖直通道，不穿过任何面板） -->
+  <path d="M1124,352 L1162,352 L1162,624 L1196,624" stroke="#c0392b" stroke-width="2.4" fill="none" marker-end="url(#arrRed)"/>
+  <text x="1156" y="480" font-size="10.5" font-weight="700" fill="#c0392b" text-anchor="end">按密级</text>
+  <text x="1156" y="496" font-size="10.5" font-weight="700" fill="#c0392b" text-anchor="end">选通道</text>
+
+  <!-- ingest -> docreader（先出控制面下沿，走 y=566 水平通道，再经 x=1180 上行） -->
+  <path d="M500,530 L500,566 L1180,566 L1180,394 L1196,394" stroke="#6a4fa3" stroke-width="2.2" fill="none" marker-end="url(#arr)"/>
+  <text x="820" y="559" font-size="10.5" fill="#5a4487">gRPC 解析（切块与元数据由 shilian ingest 掌控）</text>
+
+  <!-- ============ Bottom: request flow ============ -->
+  <g transform="translate(40,600)">
+    <text x="0" y="-10" font-size="15" font-weight="700" fill="#1c2733">⑤ 一次问答的完整链路</text>
+    <rect width="1100" height="180" rx="8" fill="#ffffff" stroke="#9fb3c8" stroke-width="1.5"/>
+
+    <rect x="18" y="20" width="150" height="58" rx="5" fill="#fff8e6" stroke="#c9a227"/>
+    <text x="93" y="42" font-size="11.5" font-weight="700" fill="#7a5c00" text-anchor="middle">1. 用户提问</text>
+    <text x="93" y="60" font-size="10" fill="#8a6d1f" text-anchor="middle">shilian web</text>
+    <text x="93" y="73" font-size="9.5" fill="#8a6d1f" text-anchor="middle">带会话身份</text>
+
+    <rect x="196" y="20" width="180" height="58" rx="5" fill="#e9f5ee" stroke="#1f7a4d"/>
+    <text x="286" y="42" font-size="11.5" font-weight="700" fill="#14532f" text-anchor="middle">2. 注入权限五元组</text>
+    <text x="286" y="60" font-size="10" fill="#2c6b47" text-anchor="middle">tenant+dept+密级+project+roles</text>
+    <text x="286" y="73" font-size="9.5" fill="#c0392b" text-anchor="middle">前端不可伪造</text>
+
+    <rect x="404" y="20" width="170" height="58" rx="5" fill="#eef4f9" stroke="#3d6ea5"/>
+    <text x="489" y="42" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">3. 编码为 KB+tag</text>
+    <text x="489" y="60" font-size="10" fill="#2c5478" text-anchor="middle">kb_encoding.build_scope</text>
+    <text x="489" y="73" font-size="9.5" fill="#2c5478" text-anchor="middle">无权则不发请求</text>
+
+    <rect x="602" y="20" width="180" height="58" rx="5" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="692" y="42" font-size="11.5" font-weight="700" fill="#1c3d5a" text-anchor="middle">4. WeKnora 检索</text>
+    <text x="692" y="60" font-size="10" fill="#2c5478" text-anchor="middle">过滤在 SQL WHERE 内下推</text>
+    <text x="692" y="73" font-size="9.5" fill="#1f7a4d" text-anchor="middle">召回→rerank→截断</text>
+
+    <rect x="810" y="20" width="150" height="58" rx="5" fill="#fdeeee" stroke="#c0392b"/>
+    <text x="885" y="42" font-size="11.5" font-weight="700" fill="#7c2418" text-anchor="middle">5. 生成</text>
+    <text x="885" y="60" font-size="10" fill="#9c3b2e" text-anchor="middle">经 gateway 脱敏</text>
+    <text x="885" y="73" font-size="9.5" fill="#9c3b2e" text-anchor="middle">切换必提示</text>
+
+    <rect x="988" y="20" width="94" height="58" rx="5" fill="#f4f0fa" stroke="#6a4fa3"/>
+    <text x="1035" y="42" font-size="11.5" font-weight="700" fill="#3f2c68" text-anchor="middle">6. 溯源</text>
+    <text x="1035" y="60" font-size="10" fill="#5a4487" text-anchor="middle">引用+页码</text>
+    <text x="1035" y="73" font-size="9.5" fill="#5a4487" text-anchor="middle">审计</text>
+
+    <path d="M168,49 L192,49" stroke="#5b6b7d" stroke-width="2" marker-end="url(#arr)"/>
+    <path d="M376,49 L400,49" stroke="#5b6b7d" stroke-width="2" marker-end="url(#arr)"/>
+    <path d="M574,49 L598,49" stroke="#5b6b7d" stroke-width="2" marker-end="url(#arr)"/>
+    <path d="M782,49 L806,49" stroke="#5b6b7d" stroke-width="2" marker-end="url(#arr)"/>
+    <path d="M960,49 L984,49" stroke="#5b6b7d" stroke-width="2" marker-end="url(#arr)"/>
+
+    <rect x="18" y="98" width="1064" height="66" rx="6" fill="#f7f9fb" stroke="#d7dee6"/>
+    <text x="32" y="120" font-size="11.5" font-weight="700" fill="#1c2733">兜底与不变量</text>
+    <text x="32" y="139" font-size="11" fill="#40505f">· retrieval-proxy 保留结果侧二次校验（防御性冗余，非主过滤）　· 越权文档不得出现在答案/引用/推荐/错误信息中（红线2）</text>
+    <text x="32" y="156" font-size="11" fill="#40505f">· API Key 的 capability + KB 白名单在 WeKnora 平台层再兜一道密级边界　· 完全无权时返回 total=0，不泄露文档存在性</text>
+  </g>
+
+  <!-- ============ Bottom: spike status ============ -->
+  <g transform="translate(1200,730)">
+    <text x="0" y="-10" font-size="15" font-weight="700" fill="#1c2733">⑥ Spike 结论</text>
+    <rect width="440" height="216" rx="8" fill="#ffffff" stroke="#1f7a4d" stroke-width="1.6"/>
+    <rect width="440" height="28" rx="8" fill="#e9f5ee"/>
+    <text x="14" y="19" font-size="13" font-weight="700" fill="#14532f">离线已验证（26 项测试全绿）</text>
+
+    <text x="16" y="50" font-size="11" fill="#2c6b47">✓ knowledge-search 支持 tag_ids 过滤</text>
+    <text x="30" y="66" font-size="10.5" fill="#40505f">PostgreSQL 引擎实现为 SQL WHERE 下推（AND 语义）</text>
+    <text x="16" y="88" font-size="11" fill="#2c6b47">✓ gateway 可作 WeKnora 的自定义厂商</text>
+    <text x="30" y="104" font-size="10.5" fill="#40505f">provider=generic + base_url + api_key，无需改 Go</text>
+    <text x="16" y="126" font-size="11" fill="#2c6b47">✓ 密级可由 API Key 承载，请求体无法伪造</text>
+    <text x="16" y="148" font-size="11" fill="#2c6b47">✓ 权限四元组可无损映射到 KB+tag 两槽</text>
+
+    <text x="16" y="176" font-size="11" font-weight="700" fill="#c0392b">✗ 待机房验证：H1 tag 下推真实性 · H2 流式 · H3 外部主体令牌</text>
+    <text x="16" y="196" font-size="10.5" fill="#8a6d1f">⚠ 已知限制：OpenAI 协议无处承载 switched_reason → 面向用户入口须用 shilian web</text>
+  </g>
+
+  <!-- ============ Footer ============ -->
+  <rect x="40" y="980" width="1600" height="170" rx="8" fill="#ffffff" stroke="#d7dee6"/>
+  <text x="60" y="1006" font-size="14" font-weight="700" fill="#1c2733">融合边界：谁负责什么</text>
+
+  <g transform="translate(60,1020)">
+    <rect width="368" height="112" rx="6" fill="#eaf2fb" stroke="#3d6ea5"/>
+    <text x="14" y="22" font-size="12.5" font-weight="700" fill="#1c3d5a">WeKnora 承担（白拿，不重写）</text>
+    <text x="14" y="43" font-size="11" fill="#2c5478">· 文档解析（25+ 格式，docreader）</text>
+    <text x="14" y="60" font-size="11" fill="#2c5478">· 检索流水线（召回→rerank→RRF 融合）</text>
+    <text x="14" y="77" font-size="11" fill="#2c5478">· 多租户空间 / RBAC / API Key 白名单</text>
+    <text x="14" y="94" font-size="11" fill="#2c5478">· IM 渠道 · MCP Server · Wiki · 长记忆 · 管理面 UI</text>
+  </g>
+
+  <g transform="translate(452,1020)">
+    <rect width="368" height="112" rx="6" fill="#fdeeee" stroke="#c0392b"/>
+    <text x="14" y="22" font-size="12.5" font-weight="700" fill="#7c2418">shilian 独占（护城河，不下放）</text>
+    <text x="14" y="43" font-size="11" fill="#9c3b2e">· 密级路由与 L4 不出 VPC</text>
+    <text x="14" y="60" font-size="11" fill="#9c3b2e">· L3 调用前脱敏 · switched_reason 强制</text>
+    <text x="14" y="77" font-size="11" fill="#9c3b2e">· 权限过滤下推 · 存在性不可推断 · 全链路审计</text>
+    <text x="14" y="94" font-size="11" fill="#9c3b2e">· tenant 维度计量计费与预算降级</text>
+  </g>
+
+  <g transform="translate(844,1020)">
+    <rect width="368" height="112" rx="6" fill="#f4f0fa" stroke="#6a4fa3"/>
+    <text x="14" y="22" font-size="12.5" font-weight="700" fill="#3f2c68">保留的业务差异化</text>
+    <text x="14" y="43" font-size="11" fill="#5a4487">· matcher 三态匹配（假阳性优先）</text>
+    <text x="14" y="60" font-size="11" fill="#5a4487">· packager 成册沙箱（禁公网·用后即销）</text>
+    <text x="14" y="77" font-size="11" fill="#5a4487">· 日期/份数/金额一律代码算，不交模型</text>
+    <text x="14" y="94" font-size="11" fill="#5a4487">· 作为「底座上的第一个参考应用」验证 SPI</text>
+  </g>
+
+  <g transform="translate(1236,1020)">
+    <rect width="368" height="112" rx="6" fill="#f7f9fb" stroke="#9fb3c8"/>
+    <text x="14" y="22" font-size="12.5" font-weight="700" fill="#1c2733">退役 / 降级</text>
+    <text x="14" y="43" font-size="11" fill="#40505f">· Dify 退役（编排职能被 agent-chat 取代）</text>
+    <text x="14" y="60" font-size="11" fill="#40505f">· RAGFlow 降为可选适配器（保留作对照跑分）</text>
+    <text x="14" y="77" font-size="11" fill="#40505f">· wecom-sync 降为单向同步器（企微→空间）</text>
+    <text x="14" y="94" font-size="11" fill="#40505f">· web 拆双前端：管理面用上游 UI</text>
+  </g>
+</svg>
