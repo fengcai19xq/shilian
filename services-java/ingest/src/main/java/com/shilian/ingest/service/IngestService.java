@@ -13,9 +13,11 @@ import com.shilian.ingest.parse.DocumentParseException;
 import com.shilian.ingest.parse.DocumentParser;
 import com.shilian.ingest.parse.FileType;
 import com.shilian.ingest.parse.ParsedDocument;
+import com.shilian.ingest.ragflow.KbEncoding;
 import com.shilian.ingest.ragflow.RagflowChunk;
 import com.shilian.ingest.ragflow.RagflowClient;
 import com.shilian.ingest.ragflow.RagflowException;
+import com.shilian.ingest.ragflow.ServerSideParseException;
 import com.shilian.ingest.store.DocumentRepository;
 import java.time.Clock;
 import java.util.LinkedHashMap;
@@ -28,16 +30,23 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 /**
- * 入库流水线：登记 → 解析 → 切块 → 推送 RAGFlow。
+ * 入库流水线：登记 → 推送知识库 → 解析建索引。
  * 状态机 uploaded → parsing → indexed | failed；L4 文档 uploaded → held_l4，不解析、不推送（L4 不出 VPC）。
  * 每次状态变化写一条审计事件。
+ *
+ * 两条推送通道（WK10，contracts/weknora-integration.md）：
+ *  - ragflow：本地 PDFBox/POI 解析 + 切块后推块，数据集名走 ingest.ragflow.dept-datasets 映射；
+ *  - weknora：解析与切块由 docreader 服务端完成（serverSideParsing），
+ *    数据集名 = 密级×部门复合编码的 KB 名，project 以 tag 随上传下发，轮询到 completed 才置 indexed。
  */
 @Service
 public class IngestService {
 
-    public static final String L4_HELD_REASON = "L4 不出 VPC：仅登记，不解析、不推送 RAGFlow";
+    public static final String L4_HELD_REASON = "L4 不出 VPC：仅登记，不解析、不推送知识库";
     static final String RAGFLOW_FAILED_REASON = "推送 RAGFlow 失败，已回滚本次写入，请稍后重试";
+    static final String WEKNORA_FAILED_REASON = "推送 WeKnora 失败，已回滚本次写入，请稍后重试";
     static final String INTERNAL_FAILED_REASON = "内部错误：解析或推送过程中出现未预期异常，请联系管理员";
+    static final String SERVER_PARSE_FAILED_REASON = "服务端解析失败，请检查文档内容或稍后重试";
 
     private static final Logger log = LoggerFactory.getLogger(IngestService.class);
 
@@ -47,6 +56,7 @@ public class IngestService {
     private final DocumentParser parser;
     private final Chunker chunker;
     private final IngestProperties.Ragflow ragflowProps;
+    private final boolean weknoraSink;
     private final Executor executor;
     private final Clock clock;
 
@@ -58,6 +68,7 @@ public class IngestService {
         this.parser = parser;
         this.chunker = chunker;
         this.ragflowProps = props.ragflow();
+        this.weknoraSink = props.weknoraSink();
         this.executor = executor;
         this.clock = clock;
     }
@@ -78,7 +89,7 @@ public class IngestService {
 
         IngestDocument doc = new IngestDocument(repo.nextId(), title, fileName, FileType.extensionOf(fileName),
                 cmd.content().length, dept, sensitivity, blankToNull(cmd.project()), blankToNull(cmd.period()),
-                blankToNull(cmd.scope()), actor, clock.instant());
+                blankToNull(cmd.scope()), actor, clock.instant(), cmd.tenantOrDefault());
         repo.save(doc);
         writeAudit(actor, doc, null);
 
@@ -103,29 +114,60 @@ public class IngestService {
     void process(String docId, byte[] content, String actor) {
         try {
             IngestDocument doc = transit(docId, DocStatus.PARSING, null, actor);
-            ParsedDocument parsed = parser.parse(doc.getFileName(), content);
-            List<Chunk> chunks = chunker.split(parsed.pages());
-            if (chunks.isEmpty()) {
-                throw new DocumentParseException("未抽取到任何文本（可能是扫描件、纯图片或空文档，需 OCR 后再上传）");
+            RagflowClient.ParseStats stats;
+            if (ragflow.serverSideParsing()) {
+                stats = pushViaDocreader(doc, content);
+            } else {
+                stats = pushWithLocalParsing(doc, content);
             }
-            pushToRagflow(doc, content, chunks);
             IngestDocument latest = get(docId);
-            latest.setParseResult(parsed.pageCount(), chunks.size());
+            latest.setParseResult(stats.pageCount(), stats.chunkCount());
             repo.save(latest);
             transit(docId, DocStatus.INDEXED, null, actor);
         } catch (DocumentParseException e) {
             fail(docId, e.getMessage(), actor);
+        } catch (ServerSideParseException e) {
+            // 服务端解析失败：只记固定分类文案，不透传服务端原文（可能含文件名或内容片段）
+            log.warn("server-side parse failed: doc={} error={}", docId, e.getMessage());
+            fail(docId, e.getUserReason() == null ? SERVER_PARSE_FAILED_REASON : e.getUserReason(), actor);
         } catch (RagflowException e) {
-            log.warn("ragflow push failed: doc={} error={}", docId, e.getMessage());
-            fail(docId, RAGFLOW_FAILED_REASON, actor);
+            log.warn("knowledge push failed: doc={} sink={} error={}", docId, sinkName(), e.getMessage());
+            fail(docId, weknoraSink ? WEKNORA_FAILED_REASON : RAGFLOW_FAILED_REASON, actor);
         } catch (RuntimeException e) {
             log.error("ingest failed unexpectedly: doc={}", docId, e);
             fail(docId, INTERNAL_FAILED_REASON, actor);
         }
     }
 
+    /** WeKnora 通道：本地不解析、不推块；上传后轮询服务端直到 indexed，失败回滚本次写入。 */
+    private RagflowClient.ParseStats pushViaDocreader(IngestDocument doc, byte[] content) {
+        String datasetId = ragflow.createDataset(datasetNameFor(doc));
+        String extDocId = ragflow.uploadDocument(datasetId, doc.getFileName(), content, metadataOf(doc));
+        RagflowClient.ParseStats stats;
+        try {
+            stats = ragflow.waitForIndexed(datasetId, extDocId);
+        } catch (RagflowException e) {
+            rollback(datasetId, extDocId);
+            throw e;
+        }
+        rememberRefs(doc.getDocId(), datasetId, extDocId);
+        return stats;
+    }
+
+    /** RAGFlow 通道：本地解析 + 切块 + 推块（既有行为，保留作对照）。 */
+    private RagflowClient.ParseStats pushWithLocalParsing(IngestDocument doc, byte[] content)
+            throws DocumentParseException {
+        ParsedDocument parsed = parser.parse(doc.getFileName(), content);
+        List<Chunk> chunks = chunker.split(parsed.pages());
+        if (chunks.isEmpty()) {
+            throw new DocumentParseException("未抽取到任何文本（可能是扫描件、纯图片或空文档，需 OCR 后再上传）");
+        }
+        pushToRagflow(doc, content, chunks);
+        return new RagflowClient.ParseStats(parsed.pageCount(), chunks.size());
+    }
+
     private void pushToRagflow(IngestDocument doc, byte[] content, List<Chunk> chunks) {
-        String datasetName = ragflowProps.datasetFor(doc.getDept());
+        String datasetName = datasetNameFor(doc);
         String datasetId = ragflow.createDataset(datasetName);
         Map<String, String> metadata = metadataOf(doc);
         String rfDocId = ragflow.uploadDocument(datasetId, doc.getFileName(), content, metadata);
@@ -135,16 +177,40 @@ public class IngestService {
                     .toList();
             ragflow.upsertChunks(datasetId, rfDocId, payload);
         } catch (RuntimeException e) {
-            try {
-                ragflow.deleteDocument(datasetId, rfDocId);
-            } catch (RuntimeException cleanup) {
-                log.warn("ragflow rollback failed: doc={} rf_doc={}", doc.getDocId(), rfDocId);
-            }
+            rollback(datasetId, rfDocId);
             throw e;
         }
-        IngestDocument latest = get(doc.getDocId());
-        latest.setRagflowRefs(datasetId, rfDocId);
+        rememberRefs(doc.getDocId(), datasetId, rfDocId);
+    }
+
+    private void rollback(String datasetId, String extDocId) {
+        try {
+            ragflow.deleteDocument(datasetId, extDocId);
+        } catch (RuntimeException cleanup) {
+            log.warn("knowledge rollback failed: kb={} doc={}", datasetId, extDocId);
+        }
+    }
+
+    private void rememberRefs(String docId, String datasetId, String extDocId) {
+        IngestDocument latest = get(docId);
+        latest.setRagflowRefs(datasetId, extDocId);
         repo.save(latest);
+    }
+
+    /**
+     * 数据集（KB）命名：WeKnora 侧必须用密级×部门复合编码，与检索侧 kb_encoding.py 逐字一致，
+     * 否则检索解析不到本模块创建的 KB，文档会变成「入库成功但永远查不到」。
+     * RAGFlow 侧沿用按部门映射（密级走 meta_fields 过滤）。
+     */
+    String datasetNameFor(IngestDocument doc) {
+        if (!weknoraSink) {
+            return ragflowProps.datasetFor(doc.getDept());
+        }
+        return KbEncoding.kbName(doc.getTenant(), doc.getSensitivity().name(), doc.getDept());
+    }
+
+    private String sinkName() {
+        return weknoraSink ? "weknora" : "ragflow";
     }
 
     /** 元数据键名与 contracts/retrieval.md 一致；可选字段为空时不写入。 */

@@ -5,6 +5,7 @@ import com.shilian.ingest.chunk.Chunker;
 import com.shilian.ingest.parse.DocumentParser;
 import com.shilian.ingest.ragflow.FakeRagflowClient;
 import com.shilian.ingest.ragflow.HttpRagflowClient;
+import com.shilian.ingest.ragflow.HttpWeKnoraClient;
 import com.shilian.ingest.ragflow.RagflowClient;
 import com.shilian.ingest.store.InMemoryDocumentRepository;
 import java.time.Clock;
@@ -26,9 +27,21 @@ public class IngestConfig {
         return new InMemoryAuditSink();
     }
 
-    /** 配置了 RAGFLOW_BASE_URL 时走真实 HTTP 客户端，否则用内存实现（本地与单测）。 */
+    /**
+     * 按 ingest.sink 选择推送通道（WK10）：
+     *  weknora → docreader 服务端解析；ragflow（默认）→ 本地解析后推块。
+     * 未配置对应 base-url 时退化为内存实现（本地开发与单测）。
+     */
     @Bean
     public RagflowClient ragflowClient(IngestProperties props) {
+        if (props.weknoraSink()) {
+            String baseUrl = props.weknora().baseUrl();
+            if (baseUrl == null || baseUrl.isBlank()) {
+                return new FakeRagflowClient();
+            }
+            return new HttpWeKnoraClient(baseUrl, props.weknora().apiKey(), props.weknora().tenantId(),
+                    props.weknora().parseTimeoutSeconds(), props.weknora().parsePollSeconds());
+        }
         String baseUrl = props.ragflow().baseUrl();
         if (baseUrl == null || baseUrl.isBlank()) {
             return new FakeRagflowClient();

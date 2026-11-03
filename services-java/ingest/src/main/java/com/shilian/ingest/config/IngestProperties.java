@@ -8,9 +8,30 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record IngestProperties(
         @DefaultValue Chunk chunk,
         @DefaultValue("true") boolean async,
-        @DefaultValue Ragflow ragflow) {
+        @DefaultValue("ragflow") String sink,
+        @DefaultValue Ragflow ragflow,
+        @DefaultValue WeKnora weknora) {
+
+    public boolean weknoraSink() {
+        return "weknora".equalsIgnoreCase(sink == null ? "" : sink.strip());
+    }
 
     public record Chunk(@DefaultValue("800") int size, @DefaultValue("100") int overlap) {}
+
+    /** WeKnora 接入配置（WK10）：凭据只从环境变量读取，仓库内不出现真实值。 */
+    public record WeKnora(
+            String baseUrl,
+            String apiKey,
+            String tenantId,
+            @DefaultValue("600") long parseTimeoutSeconds,
+            @DefaultValue("5") long parsePollSeconds) {
+
+        @Override
+        public String toString() {
+            return "WeKnora[baseUrl=" + baseUrl + ", apiKey=" + (apiKey == null || apiKey.isEmpty() ? "" : "***")
+                    + ", tenantId=" + tenantId + ", parseTimeoutSeconds=" + parseTimeoutSeconds + "]";
+        }
+    }
 
     /** RAGFlow 接入配置；apiKey 只从环境变量注入，供真实 HTTP 客户端使用（尚未实现）。 */
     public record Ragflow(

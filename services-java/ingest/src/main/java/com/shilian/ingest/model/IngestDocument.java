@@ -17,6 +17,8 @@ public class IngestDocument {
     private final String scope;
     private final String uploadedBy;
     private final Instant createdAt;
+    /** 租户标识（WK10 多租户准备）；单租户部署固定 default。 */
+    private final String tenant;
 
     private DocStatus status = DocStatus.UPLOADED;
     private String reason;
@@ -29,6 +31,13 @@ public class IngestDocument {
     public IngestDocument(String docId, String title, String fileName, String fileType, long sizeBytes,
             String dept, Sensitivity sensitivity, String project, String period, String scope,
             String uploadedBy, Instant createdAt) {
+        this(docId, title, fileName, fileType, sizeBytes, dept, sensitivity, project, period, scope,
+                uploadedBy, createdAt, "default");
+    }
+
+    public IngestDocument(String docId, String title, String fileName, String fileType, long sizeBytes,
+            String dept, Sensitivity sensitivity, String project, String period, String scope,
+            String uploadedBy, Instant createdAt, String tenant) {
         this.docId = docId;
         this.title = title;
         this.fileName = fileName;
@@ -41,12 +50,13 @@ public class IngestDocument {
         this.scope = scope;
         this.uploadedBy = uploadedBy;
         this.createdAt = createdAt;
+        this.tenant = tenant == null || tenant.isBlank() ? "default" : tenant;
         this.updatedAt = createdAt;
     }
 
     public synchronized IngestDocument copy() {
         IngestDocument c = new IngestDocument(docId, title, fileName, fileType, sizeBytes, dept, sensitivity,
-                project, period, scope, uploadedBy, createdAt);
+                project, period, scope, uploadedBy, createdAt, tenant);
         c.status = status;
         c.reason = reason;
         c.pageCount = pageCount;
@@ -69,6 +79,7 @@ public class IngestDocument {
     public String getScope() { return scope; }
     public String getUploadedBy() { return uploadedBy; }
     public Instant getCreatedAt() { return createdAt; }
+    public String getTenant() { return tenant; }
     public synchronized DocStatus getStatus() { return status; }
     public synchronized String getReason() { return reason; }
     public synchronized int getPageCount() { return pageCount; }

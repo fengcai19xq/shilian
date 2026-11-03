@@ -32,6 +32,7 @@ public class IngestController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentView> upload(
             @RequestHeader(value = "X-User-Id", required = false) String actor,
+            @RequestHeader(value = "X-Tenant-Id", required = false) String tenant,
             @RequestPart(value = "file", required = false) MultipartFile file,
             @RequestParam(required = false) String dept,
             @RequestParam(required = false) String sensitivity,
@@ -42,7 +43,8 @@ public class IngestController {
         byte[] content = file == null ? null : file.getBytes();
         String fileName = file == null ? null : file.getOriginalFilename();
         DocumentView view = DocumentView.of(service.submit(
-                new UploadCommand(actor, fileName, content, dept, sensitivity, project, period, scope, title)));
+                new UploadCommand(actor, fileName, content, dept, sensitivity, project, period, scope, title,
+                        tenant)));
         return ResponseEntity.accepted().location(URI.create("/ingest/documents/" + view.docId())).body(view);
     }
 
