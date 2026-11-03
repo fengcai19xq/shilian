@@ -1,6 +1,6 @@
 {
   "project": "航锂智能体",
-  "updated_at": "2026-10-01",
+  "updated_at": "2026-11-03",
   "token_budget": {
     "monthly_cap_cny": 30000,
     "alert_at_pct": 80,
@@ -26,6 +26,26 @@
       "id": "P-3",
       "name": "P2 · 增强与治理",
       "goal": "决策层、查数、审计"
+    },
+    {
+      "id": "WK-0",
+      "name": "W0 · WeKnora 集成前置（spike 收尾 + 评审）",
+      "goal": "D1-D3 评审拍板、H1-H3 现场验证、部署 WeKnora 测试实例"
+    },
+    {
+      "id": "WK-1",
+      "name": "W1 · 双底座并存",
+      "goal": "gateway OpenAI 兼容层、RetrievalBackend SPI、WeKnora 适配器，同一评测集在 RAGFlow / WeKnora 跑分对比"
+    },
+    {
+      "id": "WK-2",
+      "name": "W2 · 底座切换",
+      "goal": "ingest 切 docreader、Dify 退役、web 双前端切分，T01（端到端）在新底座跑通"
+    },
+    {
+      "id": "WK-3",
+      "name": "W3 · 平台就绪",
+      "goal": "MCP 发布、多租户红队、Lite 形态、OIDC 身份源"
     }
   ],
   "tasks": [
@@ -298,7 +318,251 @@
       "acceptance": "docker compose config 通过；各模块 Dockerfile 可构建；README 含验收清单",
       "session": "https://app.devin.ai/sessions/82022daf95e54138ad6a7aa78abb5b58",
       "note": "compose/Dockerfile/smoke.sh 已完成，PR 评审中。"
+    },
+    {
+      "id": "WK01",
+      "phase": "WK-0",
+      "module": "spike",
+      "title": "决策 D1-D3 评审拍板",
+      "owner": "数智化中心 + 融资部",
+      "days": 1,
+      "deps": [],
+      "status": "done",
+      "acceptance": "D1-D3 及 §4.3 KB 编码方案在 DESIGN-REVIEW.md 结论区签字",
+      "session": "",
+      "note": "2026-11-03 完成：D1-D3 全部通过，见 spike/DESIGN-REVIEW.md §12"
+    },
+    {
+      "id": "WK02",
+      "phase": "WK-0",
+      "module": "infra",
+      "title": "WeKnora 测试实例部署（ParadeDB + docreader + app）",
+      "owner": "数智化中心",
+      "days": 3,
+      "deps": [
+        "WK01"
+      ],
+      "status": "done",
+      "acceptance": "docker compose 启全栈（含本地 embedding 模型），管理面可登录、可创建知识库、可上传文档并问答",
+      "session": "",
+      "note": "2026-11-03 完成：53 上 WeKnora 五容器 healthy（app:8090/frontend:8091/pg:5433/redis:6381/docreader:50051），千问 qwen-plus + TEI bge-m3 已配通，nginx SSE/API 分离修复已落地"
+    },
+    {
+      "id": "WK03",
+      "phase": "WK-0",
+      "module": "spike",
+      "title": "H1/H2/H3 现场验证（verify_live.py）",
+      "owner": "数智化中心",
+      "days": 2,
+      "deps": [
+        "WK02"
+      ],
+      "status": "todo",
+      "acceptance": "H1 tag_ids 为引擎级下推；H2 SSE 流式可用；H3 外部主体令牌可承载会话身份",
+      "session": "",
+      "note": "运行 spike/weknora/verify_live.py；H1 失败则走 fallback（dept 升格为 KB 维度或上游 PR），H2 失败则 P1 重排优先级，H3 失败则继续用现有 X-User-Id 注入"
+    },
+    {
+      "id": "WK04",
+      "phase": "WK-0",
+      "module": "contract",
+      "title": "新增 contracts/platform.md（tenant 模型 + SPI）",
+      "owner": "后端B",
+      "days": 1,
+      "deps": [
+        "WK01"
+      ],
+      "status": "done",
+      "acceptance": "tenant 模型（3 档隔离等级）、计量/配额维度、RetrievalBackend SPI（search/probe + metadata）、DocReader 接口、ChannelAdapter 接口，按仓库规矩单独 PR",
+      "session": "",
+      "note": "2026-11-03 完成：contracts/platform.md 已落地，含租户模型、3 档隔离、3 个 SPI、出账维度加 tenant_id"
+    },
+    {
+      "id": "WK05",
+      "phase": "WK-0",
+      "module": "contract",
+      "title": "新增 contracts/weknora-integration.md（端点映射 + 密级绑定规则）",
+      "owner": "后端B",
+      "days": 1,
+      "deps": [
+        "WK01"
+      ],
+      "status": "done",
+      "acceptance": "WeKnora 端点职责表、API Key 与密级绑定规则（1 Key → 1 tenant + 1 dept + 1 密级）、KB 命名规范、安全纪律清单，按仓库规矩单独 PR",
+      "session": "",
+      "note": "2026-11-03 完成：contracts/weknora-integration.md 已落地（端点映射/密级绑定/KB 编码/安全纪律）"
+    },
+    {
+      "id": "WK06",
+      "phase": "WK-1",
+      "module": "gateway",
+      "title": "gateway 新增 OpenAI 兼容入口（chat/completions + embeddings）",
+      "owner": "后端B",
+      "days": 4,
+      "deps": [
+        "WK04"
+      ],
+      "status": "done",
+      "acceptance": "OpenAI chat.completions 与 embeddings 端点可响应，正确映射到 InvokeRequest；API Key → (tenant, dept, 密级) 绑定生效；密级不可由请求体伪造（复用 spike 测试）",
+      "session": "",
+      "note": "2026-11-03 完成：gateway/openai_compat.py 落地，57 项测试全绿；含 tenant 字段向后兼容"
+    },
+    {
+      "id": "WK07",
+      "phase": "WK-1",
+      "module": "gateway",
+      "title": "gateway 出账维度加 tenant_id，密级路由适配 WeKnora 厂商模式",
+      "owner": "后端B",
+      "days": 2,
+      "deps": [
+        "WK06"
+      ],
+      "status": "done",
+      "acceptance": "每笔调用按 tenant+dept+purpose+model 出账；switched_reason 写审计与响应头（中文 URL 编码），通道信息写 system_fingerprint",
+      "session": "",
+      "note": "2026-11-03 完成：出账键加 tenant，UsageLedger/BudgetGuard 贯通租户，单租户行为不变"
+    },
+    {
+      "id": "WK08",
+      "phase": "WK-1",
+      "module": "retrieval-proxy",
+      "title": "抽取 RetrievalBackend SPI，实现 WeKnoraAdapter",
+      "owner": "后端A",
+      "days": 5,
+      "deps": [
+        "WK04",
+        "WK03"
+      ],
+      "status": "done",
+      "acceptance": "RetrievalBackend 接口（search / probe）；RAGFlow adapter 与 WeKnora adapter 双实现；KB 编码模块（kb_encoding）接入尖峰生产代码而非 spike 独立实现；权限四元组正确翻译为 kb_ids+tag_ids 随请求下推；knowledge_ids 永久排除在权限过滤之外（测试不变）；tag_ids 引擎级下推由 H1 验证结论决定是否追加应用层校验",
+      "session": "",
+      "note": "2026-11-03 完成：backends.py SPI + weknora.py adapter + adapters.py RAGFlow 包装；修复 project 标签不可逆导致的静默丢授权文档缺陷"
+    },
+    {
+      "id": "WK10",
+      "phase": "WK-2",
+      "module": "ingest-java",
+      "title": "文档入库管线切 docreader（gRPC 直连），RAGFlow 入库通道保留为可选",
+      "owner": "后端A",
+      "days": 5,
+      "deps": [
+        "WK08",
+        "WK05"
+      ],
+      "status": "done",
+      "acceptance": "通过 WeKnora docreader（gRPC :50051）解析后入库 WeKnora 知识库；held_l4 状态机、密级标注、审计元数据全部保留不变；chunk_id/page 口径可映射到 WeKnora 切块",
+      "session": "",
+      "note": "2026-11-03 完成：新增 HttpWeKnoraClient（服务端解析轮询+project→tag+错误分类脱敏）、KbEncoding（与 retrieval-proxy kb_encoding.py 逐字对齐，KbEncodingTest 钉死）、IngestService 双通道分支（sink=ragflow|weknora，WeKnora 走 docreader 不本地解析）、application.properties + .env.example + compose 透传配置。ingest 71 测试全绿，gateway 57、retrieval-proxy 43 回归通过。RAGFlow 通道保留为默认（决策 D3 对照基准）。"
+    },
+    {
+      "id": "WK11",
+      "phase": "WK-2",
+      "module": "infra",
+      "title": "Dify 退役，编排职能移交 WeKnora agent-chat/chat_pipeline",
+      "owner": "数智化中心",
+      "days": 3,
+      "deps": [
+        "WK10"
+      ],
+      "status": "todo",
+      "acceptance": "Dify 服务下线，原工作流中的决定步骤由 decide 模块接管，其余编排由 WeKnora agent 执行；退役后无告警/错误日志",
+      "session": "",
+      "note": "本次最大改造项（DESIGN-REVIEW.md §6）；退役前需确认 decide 模块覆盖原 Dify 工作流中的每条判定路径"
+    },
+    {
+      "id": "WK12",
+      "phase": "WK-2",
+      "module": "web",
+      "title": "Web 前端拆分为管理面（WeKnora UI）+ 业务工作台（shilian web）",
+      "owner": "前端",
+      "days": 6,
+      "deps": [
+        "WK07",
+        "T13"
+      ],
+      "status": "todo",
+      "acceptance": "管理面（KB 创建/模型配置/成员管理）指向 WeKnora 原生 UI；业务工作台（问答溯源/清单成册/待确认/审计）保留 shilian web；两套 UI 无样式冲突，共享同一认证态",
+      "session": "",
+      "note": "问答入口必须用 shilian web（红线 4 约束，见 DESIGN-REVIEW.md §5.3）"
+    },
+    {
+      "id": "WK13",
+      "phase": "WK-2",
+      "module": "integration",
+      "title": "T01 端到端在新底座完整跑通",
+      "owner": "数智化中心",
+      "days": 3,
+      "deps": [
+        "WK10",
+        "WK11",
+        "WK12"
+      ],
+      "status": "todo",
+      "acceptance": "脱敏 DOCX 上传→ingest→docreader 解析→WeKnora 入库→retrieval-proxy 权限检索→shilian web 问答溯源→清单成册闭环全链路通过；smoke.sh 或等价验收脚本在新底座跑通",
+      "session": "",
+      "note": "对应原 T01 在新的底座形态下的等价验收；确保 backward compatibility——RAGFlow 底座链路同样可跑（由 WK08 双后端保证）"
+    },
+    {
+      "id": "WK14",
+      "phase": "WK-2",
+      "module": "gateway-java",
+      "title": "企微组织架构同步适配 WeKnora 空间模型（T05 升级）",
+      "owner": "后端B",
+      "days": 3,
+      "deps": [
+        "WK05",
+        "T05"
+      ],
+      "status": "done",
+      "acceptance": "企微通讯录同步为 WeKnora 空间成员；dept→KB 创建/授权自动化；IM 收发由 WeKnora 内置企微渠道承载（T12 被替代）",
+      "session": "",
+      "note": "2026-11-03 完成：weknora 包新增 KbEncoding（与 ingest/检索侧三处同源，KbEncodingTest 7 项钉死）、WeknoraIdentityClient 接口 + Http/Fake 两实现、WeknoraProjectionService（角色最小权限映射：命中 admin/contributor 配置，其余一律 viewer）、IdentityController 新增 POST /identity/weknora/project（支持 dry_run，失败不回滚本地同步）、WecomSyncConfig 装配 + application.properties 开关（默认 enabled=false）。成员/离职端点未现场核对前 membersEnabled=false，显式拒绝盲发写请求。wecom-sync 69 测试全绿。"
+    },
+    {
+      "id": "WK15",
+      "phase": "WK-3",
+      "module": "gateway",
+      "title": "MCP Server 端点（知识库对外发布）",
+      "owner": "后端B",
+      "days": 3,
+      "deps": [
+        "WK13"
+      ],
+      "status": "todo",
+      "acceptance": "/mcp/:endpoint_id 端点可用，每端点独立 Bearer token；Claude/Cursor 等外部工具可消费 shilian 知识库",
+      "session": "",
+      "note": "每端点绑定 kb_ids 白名单 + capability 最小化；默认关闭、按需开"
+    },
+    {
+      "id": "WK16",
+      "phase": "WK-3",
+      "module": "security",
+      "title": "多租户红队测试",
+      "owner": "数智化中心 + 外援",
+      "days": 5,
+      "deps": [
+        "WK13"
+      ],
+      "status": "todo",
+      "acceptance": "报告零高危；覆盖场景：跨租户越权（API Key + 空间隔离）、注入（检索/Agent/MCP）、SSRF（base_url 白名单）、密级提权（伪造 principal/sensitivity/API Key）、LK4 数据出 VPC（网络策略校验）",
+      "session": "",
+      "note": "平台跨租户泄露一次，密级卖点就地崩塌（DESIGN-REVIEW.md §8）"
+    },
+    {
+      "id": "WK17",
+      "phase": "WK-3",
+      "module": "infra",
+      "title": "分级交付形态：Lite 单二进制 + OIDC 身份源",
+      "owner": "运维",
+      "days": 5,
+      "deps": [
+        "WK13"
+      ],
+      "status": "todo",
+      "acceptance": "Lite 形态（DB_DRIVER=sqlite + sqlite-vec，无 Redis 时 Asynq 进程内执行）可独立运行；OIDC 对接企业 IdP 完成（DISABLE_REGISTRATION=true / invite_register）；Lite → 标准 K8s 数据迁移文档可用",
+      "session": "",
+      "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）"
     }
   ],
-  "note": "2026-10-01 方案调整：IM 入口（企微/飞书）与缺件派单延后；近期主线 = 文档解析入库(T06) → 权限检索(T04) → PC 端对话与引用溯源(T07)。"
+  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0 全部完成；WK06-08 编码完成待提交。WK09 双底座跑分按需求移除。近期主线 = WK10(ingest 切 docreader) ∥ WK14(企微适配)，二者完成后推进 WK11(Dify 退役)→WK12(web 拆分)→WK13(端到端)。"
 }
