@@ -1,0 +1,25 @@
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+target/
+
+# 机房联调期间的一次性诊断 / 修复脚本：只在本地留档，不入库。
+# 其中 add_qwen.py、run_verify.py 等内联过联调用真实密钥与口令，禁止提交（红线：不硬编码密钥）。
+spike/weknora/add_qwen.py
+spike/weknora/run_verify.py
+spike/weknora/deploy_mvp.sh
+spike/weknora/verify_mvp.py
+spike/weknora/verify_mvp.sh
+spike/weknora/verify_proxy.py
+spike/weknora/diag_*.py
+spike/weknora/check_*.py
+spike/weknora/fix_*.py
+spike/weknora/find_timeout.py
+spike/weknora/extract_*.py
+spike/weknora/search_index_js.py
+spike/weknora/probe_enqueue.py
+spike/weknora/wait_doc.py
+spike/weknora/del_model.py
+spike/weknora/final_fix.py
+spike/weknora/mvp_phase2.py

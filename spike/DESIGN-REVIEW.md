@@ -225,10 +225,17 @@ WeKnora 2026 年被披露过 SQL 注入至 RCE、MCP 命令注入、跨租户越
 
 | 决策 | 结论 | 评审人 | 日期 |
 | --- | --- | --- | --- |
-| D1 推翻不接入结论 | 待填 | | |
-| D2 用户入口用 shilian web | 待填 | | |
-| D3 RAGFlow 降级保留 | 待填 | | |
-| §4.3 KB 复合编码方案 | 待填 | | |
-| §8 安全纪律 | 待填 | | |
+| D1 推翻不接入结论 | **通过**——接入 WeKnora 作为可插拔检索与解析底座 | 数智化中心 | 2026-11-03 |
+| D2 用户入口用 shilian web | **通过**——WeKnora 原生 UI 只作管理面（红线 4 协议层限制） | 数智化中心 | 2026-11-03 |
+| D3 RAGFlow 降级保留 | **通过**——降级为可选 adapter，保留作对照跑分 | 数智化中心 | 2026-11-03 |
+| §4.3 KB 复合编码方案 | **通过**——spike 26 项测试验证，三个陷阱均有修复与回归 | 数智化中心 | 2026-11-03 |
+| §8 安全纪律 | **通过**——锁版本+OIDC+SSRF白名单+红队 | 数智化中心 | 2026-11-03 |
 
-> 契约层变更（新增 `contracts/platform.md`、`contracts/weknora-integration.md`）按仓库规矩**单独提 PR**，本评审通过后再启动。
+> 评审依据：
+> - spike/SPIKE-REPORT.md 离线 4 项假设全部验证通过（26 项测试全绿）
+> - 53 测试环境 WeKnora 全栈已部署并跑通（app+docreader+postgres+redis+frontend 五容器 healthy）
+> - 千问 API（qwen-plus）和 TEI embedding（bge-m3）已配通，文档解析→检索→问答全链路验证通过
+> - nginx SSE/API 分离修复已落地，前端登录超时问题已解决
+>
+> 契约层变更已落地：`contracts/platform.md`（WK04）、`contracts/weknora-integration.md`（WK05）。
+> 启动 W1 阶段。

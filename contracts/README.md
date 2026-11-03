@@ -15,3 +15,6 @@
 | `packaging.md` | manifest 与产物规格 | matcher / web |
 | `gateway.md` | 模型调用、密级路由、用量计费 | 全部 |
 | `decide.md` | 问答路由 `/decide/route` 出参 | decide, web |
+| `ingest.md` | 文档入库状态机与元数据 | ingest-java, retrieval-proxy |
+| `platform.md` | 多租户模型、隔离等级、RetrievalBackend/DocReader/ChannelAdapter SPI | 全部 |
+| `weknora-integration.md` | WeKnora 端点映射、API Key 密级绑定、KB 编码、安全纪律 | retrieval-proxy, gateway, ingest-java |
