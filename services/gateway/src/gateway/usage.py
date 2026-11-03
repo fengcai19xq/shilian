@@ -28,12 +28,16 @@ def current_period(today: date | None = None) -> str:
 
 @dataclass(frozen=True)
 class UsageKey:
-    """出账维度：周期 + 部门 + 用途 + 模型。"""
+    """出账维度：周期 + 租户 + 部门 + 用途 + 模型。
+
+    tenant 缺省空串表示单租户部署（contracts/platform.md §5.1 的多租户出账键）。
+    """
 
     period: str
     dept: str
     purpose: Purpose
     model: str
+    tenant: str = ""
 
 
 @dataclass
@@ -53,24 +57,47 @@ class UsageLedger:
         self._records: dict[UsageKey, UsageRecord] = {}
 
     def record(
-        self, dept: str, purpose: Purpose, model: str, usage: Usage, period: str | None = None
+        self,
+        dept: str,
+        purpose: Purpose,
+        model: str,
+        usage: Usage,
+        period: str | None = None,
+        tenant: str = "",
     ) -> None:
-        key = UsageKey(period=period or current_period(), dept=dept, purpose=purpose, model=model)
+        key = UsageKey(period=period or current_period(), dept=dept, purpose=purpose, model=model,
+                       tenant=tenant)
         item = self._records.setdefault(key, UsageRecord())
         item.prompt_tokens += usage.prompt_tokens
         item.completion_tokens += usage.completion_tokens
         item.cost_cny = round(item.cost_cny + usage.cost_cny, 6)
         item.calls += 1
 
-    def get(self, dept: str, purpose: Purpose, model: str, period: str | None = None) -> UsageRecord:
-        key = UsageKey(period=period or current_period(), dept=dept, purpose=purpose, model=model)
+    def get(
+        self,
+        dept: str,
+        purpose: Purpose,
+        model: str,
+        period: str | None = None,
+        tenant: str = "",
+    ) -> UsageRecord:
+        key = UsageKey(period=period or current_period(), dept=dept, purpose=purpose, model=model,
+                       tenant=tenant)
         return self._records.get(key, UsageRecord())
 
-    def dept_total(self, dept: str, period: str | None = None) -> float:
-        """某部门当期总花费（元）。"""
+    def dept_total(self, dept: str, period: str | None = None, tenant: str | None = None) -> float:
+        """某部门当期总花费（元）。
+
+        tenant=None 表示不限租户（单租户部署与既有调用方的默认行为）；
+        传入具体租户则只统计该租户。
+        """
         target = period or current_period()
         return round(
-            sum(v.cost_cny for k, v in self._records.items() if k.dept == dept and k.period == target),
+            sum(
+                v.cost_cny
+                for k, v in self._records.items()
+                if k.dept == dept and k.period == target and (tenant is None or k.tenant == tenant)
+            ),
             6,
         )
 
@@ -90,6 +117,7 @@ class BudgetStatus:
     should_warn: bool = False
     should_degrade: bool = False
     message: str | None = None
+    tenant: str = ""
 
 
 @dataclass
@@ -99,26 +127,33 @@ class BudgetGuard:
     policy: BudgetPolicy
     ledger: UsageLedger = field(default_factory=UsageLedger)
 
-    def check(self, dept: str, period: str | None = None) -> BudgetStatus:
+    def check(self, dept: str, period: str | None = None, tenant: str | None = None) -> BudgetStatus:
+        """预算额度仍按部门配置（只增不改）；tenant 只决定统计口径。
+
+        tenant=None → 不限租户（单租户部署 / 既有调用方行为不变）；
+        tenant 传具体值 → 只统计该租户在该部门的用量，避免跨租户互相挤占预算。
+        """
         limit = self.policy.limit_for(dept)
-        consumed = self.ledger.dept_total(dept, period)
+        consumed = self.ledger.dept_total(dept, period, tenant=tenant)
         if limit <= 0:
-            return BudgetStatus(dept=dept, limit_cny=limit, consumed_cny=consumed)
+            return BudgetStatus(dept=dept, limit_cny=limit, consumed_cny=consumed, tenant=tenant or "")
 
         ratio = consumed / limit
-        status = BudgetStatus(dept=dept, limit_cny=limit, consumed_cny=consumed, ratio=ratio)
+        status = BudgetStatus(dept=dept, limit_cny=limit, consumed_cny=consumed, ratio=ratio,
+                              tenant=tenant or "")
+        who = f"租户 {tenant} / 部门 {dept}" if tenant else f"部门 {dept}"
         if ratio >= self.policy.degrade_ratio:
             status.should_degrade = True
             status.should_warn = True
             status.message = (
-                f"部门 {dept} 当期用量已达月度预算 100%（{consumed:.2f}/{limit:.2f} 元），"
+                f"{who} 当期用量已达月度预算 100%（{consumed:.2f}/{limit:.2f} 元），"
                 "已自动降级到低成本模型，请通知数智化中心"
             )
             logger.error(status.message)
         elif ratio >= self.policy.warn_ratio:
             status.should_warn = True
             status.message = (
-                f"部门 {dept} 当期用量已达月度预算 "
+                f"{who} 当期用量已达月度预算 "
                 f"{self.policy.warn_ratio:.0%}（{consumed:.2f}/{limit:.2f} 元）"
             )
             logger.warning(status.message)

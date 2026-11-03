@@ -120,7 +120,8 @@ class SensitivityRouter:
         if low_cost.name == chosen.name:
             return chosen
         reasons.append(
-            f"部门 {budget.dept} 当期用量已达月度预算 100%"
+            f"{'租户 ' + budget.tenant + ' / 部门' if budget.tenant else '部门'} {budget.dept} "
+            f"当期用量已达月度预算 100%"
             f"（{budget.consumed_cny:.2f}/{budget.limit_cny:.2f} 元），"
             f"自动降级到低成本模型（{chosen.name} → {low_cost.name}）"
         )

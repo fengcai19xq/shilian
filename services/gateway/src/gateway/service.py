@@ -40,9 +40,11 @@ class GatewayService:
 
     def invoke(self, request: InvokeRequest) -> InvokeResponse:
         dept = self._billing_dept(request)
+        # tenant 为空串时按 None 处理：不限租户统计，单租户部署行为与改造前一致
+        tenant = self._billing_tenant(request)
 
         # 1) 调用前判预算档位，超额则在路由阶段直接降级到低成本模型
-        budget_before = self.budget_guard.check(dept)
+        budget_before = self.budget_guard.check(dept, tenant=tenant)
         decision = self.router.route(
             purpose=request.purpose,
             sensitivity=request.sensitivity,
@@ -64,16 +66,16 @@ class GatewayService:
         # 4) 返回后还原占位符
         output = self.masker.restore(result.output, mapping) if mapping else result.output
 
-        # 5) 成本用代码算并按 dept + purpose + model 记账
+        # 5) 成本用代码算并按 tenant + dept + purpose + model 记账
         usage = Usage(
             prompt_tokens=result.prompt_tokens,
             completion_tokens=result.completion_tokens,
             cost_cny=decision.model.cost_cny(result.prompt_tokens, result.completion_tokens),
         )
-        self.ledger.record(dept, request.purpose, decision.model.name, usage)
+        self.ledger.record(dept, request.purpose, decision.model.name, usage, tenant=tenant or "")
 
         # 6) 记账后再判一次，让刚跨过 80%/100% 的调用当次就带出告警
-        budget_after = self.budget_guard.check(dept)
+        budget_after = self.budget_guard.check(dept, tenant=tenant)
 
         if decision.switched_reason:
             logger.info(
@@ -97,3 +99,8 @@ class GatewayService:
         if request.principal is None or not request.principal.dept:
             return UNKNOWN_DEPT
         return request.principal.dept[0]
+
+    @staticmethod
+    def _billing_tenant(request: InvokeRequest) -> str:
+        """出账租户。单租户部署时为空串，此时预算与统计不限租户。"""
+        return request.principal.tenant if request.principal else ""

@@ -8,6 +8,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .clients.openai_compatible import MissingApiKeyError
+from .openai_compat import EnvKeyRegistry, register_openai_routes
 from .router import NoEligibleModelError
 from .schemas import InvokeRequest, InvokeResponse, Principal
 from .service import GatewayService
@@ -29,6 +30,7 @@ ANONYMOUS_USER = "anonymous"
 def create_app(service: GatewayService | None = None) -> FastAPI:
     app = FastAPI(title="航锂智能体 —— 统一模型网关", version="0.1.0")
 
+    effective = service
     if service is not None:
         app.dependency_overrides[get_service] = lambda: service
 
@@ -57,6 +59,12 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
             ) from exc
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail="上游模型服务不可达") from exc
+
+    # OpenAI 兼容入口（WK06）：WeKnora 等外部框架按「自定义厂商」调这些路由，
+    # 全部流经上面的密级路由 / 脱敏 / 出账逻辑。密钥注册表为空时不挂载。
+    registry = EnvKeyRegistry.from_env()
+    if registry.enabled:
+        register_openai_routes(app, effective or get_service(), registry)
 
     return app
 

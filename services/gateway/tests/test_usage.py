@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from gateway.schemas import Purpose, Sensitivity, Usage
+from gateway.schemas import InvokeRequest, Principal, Purpose, Sensitivity, Usage
 from gateway.usage import UsageLedger
 
 from .conftest import make_request
@@ -57,6 +57,68 @@ def test_账本按月隔离():
     ledger.record("融资部", Purpose.generate, "m", Usage(cost_cny=2.0), period="2026-10")
     assert ledger.dept_total("融资部", period="2026-09") == 1.0
     assert ledger.dept_total("融资部", period="2026-10") == 2.0
+
+
+# ---------------- 多租户出账（WK07 / contracts/platform.md §5.1）----------------
+
+
+def _tenant_request(tenant: str, dept: str = "融资部",
+                    preferred_model: str | None = None,
+                    purpose: Purpose = Purpose.generate) -> InvokeRequest:
+    """带租户的调用（只在本文件用，避免改动共享 conftest）。"""
+    return InvokeRequest(
+        purpose=purpose,
+        sensitivity=Sensitivity.L1,
+        preferred_model=preferred_model,
+        principal=Principal(user_id="u_10231", dept=[dept], tenant=tenant),
+        payload={"prompt": "介绍一下储能系统"},
+    )
+
+
+def test_单租户部署行为不变(service):
+    """tenant 为空时统计不限租户，与改造前口径一致。"""
+    service.invoke(make_request(dept="融资部"))
+    assert service.ledger.dept_total("融资部") > 0
+    assert service.ledger.dept_total("融资部", tenant=None) == service.ledger.dept_total("融资部")
+
+
+def test_同部门不同租户分别累计(service):
+    """租户隔离：A 租户的花费不能计入 B 租户的预算判定。"""
+    service.invoke(_tenant_request(tenant="acme"))
+    service.invoke(_tenant_request(tenant="acme"))
+    service.invoke(_tenant_request(tenant="other"))
+
+    assert service.ledger.dept_total("融资部", tenant="acme") > 0
+    assert service.ledger.dept_total("融资部", tenant="other") > 0
+    assert service.ledger.dept_total("融资部", tenant="acme") < service.ledger.dept_total("融资部")
+    # 记录按租户分桶
+    assert service.ledger.get("融资部", Purpose.generate, "deepseek-v3-enterprise",
+                              tenant="acme").calls == 2
+    assert service.ledger.get("融资部", Purpose.generate, "deepseek-v3-enterprise",
+                              tenant="other").calls == 1
+    # 未带租户的桶是空的：说明记账确实写入了 tenant 维度
+    assert service.ledger.get("融资部", Purpose.generate, "deepseek-v3-enterprise").calls == 0
+
+
+def test_租户预算告警文案带租户(service):
+    service.ledger.record("融资部", Purpose.generate, "deepseek-v3-enterprise",
+                          Usage(cost_cny=3000.0 * 0.85), tenant="acme")
+    status = service.budget_guard.check("融资部", tenant="acme")
+    assert status.should_warn and not status.should_degrade
+    assert "acme" in status.message
+
+
+def test_他租户超预算不影响本租户降级(service):
+    """A 租户烧满预算后，B 租户同部门调用仍走默认模型。"""
+    service.ledger.record("融资部", Purpose.generate, "deepseek-v3-enterprise",
+                          Usage(cost_cny=3000.0), tenant="acme")
+
+    a = service.invoke(_tenant_request(tenant="acme",
+                                       preferred_model="deepseek-v3-enterprise"))
+    b = service.invoke(_tenant_request(tenant="other",
+                                       preferred_model="deepseek-v3-enterprise"))
+    assert a.model == "qwen-small-enterprise" and a.switched_reason and "acme" in a.switched_reason
+    assert b.model == "deepseek-v3-enterprise"
 
 
 def _seed_spend(service, dept: str, cost: float) -> None:

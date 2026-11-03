@@ -35,10 +35,16 @@ class Channel(str, Enum):
 
 
 class Principal(BaseModel):
-    """调用主体，用于按部门出账与审计。"""
+    """调用主体，用于按部门出账与审计。
+
+    tenant 为可选字段（contracts/platform.md §5.1：出账键加租户维度）。
+    缺省空串表示单租户部署 / 未启用平台模式，既有调用方不受影响——
+    按 contracts/README.md「只增不改：新增可选字段无需协商」。
+    """
 
     user_id: str
     dept: list[str] = Field(default_factory=list)
+    tenant: str = ""
 
 
 class InvokeRequest(BaseModel):
