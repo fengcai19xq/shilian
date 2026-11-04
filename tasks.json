@@ -515,7 +515,7 @@
       "status": "todo",
       "acceptance": "services-java/matcher 实现调用 retrieval-proxy 的 CandidateProvider（权限过滤在检索请求内完成，禁止取回后再过滤）；matcher/packager 纳入 deploy/test compose 可在 53 起服务；黄金清单走「上传解析→匹配→三态确认→成册产物（ZIP/合订PDF/核对表）」全链路在新底座跑通；假阳性率 < 2% 回归达标；两侧 candidate 属性口径与 contracts/matching.md、retrieval.md 一致",
       "session": "",
-      "note": "2026-11-04 从 WK13 拆出。背景：CandidateProvider 的 HTTP 真实召回从未实现（Java 侧只有 Null 桩，Python 侧只有 Null/Static），故成册闭环在旧 RAGFlow 底座上也从未端到端跑过——不是 WeKnora 切换引入的回归。工作项：① 写 HTTP 召回 provider（把 principal 四元组透传给 retrieval-proxy，红线 1）；② 补该 provider 单测（含越权不返回、属性缺失按不通过处理）；③ compose 增加 matcher/packager 与 nginx 反代规则；④ 与 packager 联调产物字节可重放。依赖 T03 黄金评测集（仍 todo）才能真正验证假阳性率，未就绪时先用脱敏样例清单跑通链路。注意 deps 刻意不列 WK13：WK13 的成册段验收要等本任务，互指会成环；本任务的实现依赖是已完成的 T04/T06/T17/T18 加上 T03 数据。"
+      "note": "2026-11-04 从 WK13 拆出。背景：CandidateProvider 的 HTTP 真实召回从未实现（Java 侧只有 Null 桩，Python 侧只有 Null/Static），故成册闭环在旧 RAGFlow 底座上也从未端到端跑过——不是 WeKnora 切换引入的回归。工作项：① 写 HTTP 召回 provider（把 principal 四元组透传给 retrieval-proxy，红线 1）；② 补该 provider 单测（含越权不返回、属性缺失按不通过处理）；③ compose 增加 matcher/packager 与 nginx 反代规则；④ 与 packager 联调产物字节可重放。依赖 T03 黄金评测集（仍 todo）才能真正验证假阳性率，未就绪时先用脱敏样例清单跑通链路。注意 deps 刻意不列 WK13：WK13 的成册段验收要等本任务，互指会成环；本任务的实现依赖是已完成的 T04/T06/T17/T18 加上 T03 数据。进展：HTTP 召回 provider 已落地（commit 5d76a00，matcher 54 项测试全绿，权限随请求下推、错误不外泄文档名）。核对发现更深的欠账——五类硬约束属性（std_type/period/scope/copies/stamped）在真实链路上从来没有数据生产方，直接接线会全部落 missing，非 WeKnora 切换引入。据此（用户已认可）改走「候选属性由 ingest 登记富化」架构，契约变更提案见 spike/WK18-REGISTRY-ENRICHMENT.md（contracts 签字前不动）。53 现场本轮网络不可达（8090/22 全超时），现场部署与联调待恢复。"
     },
     {
       "id": "WK14",
