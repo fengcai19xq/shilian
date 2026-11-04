@@ -69,6 +69,25 @@ def api(method: str, path: str, **kw: Any) -> Any:
     return unwrap(resp)
 
 
+def resolve_embedding_model() -> str:
+    """取空间内已配通的 Embedding 模型 id。
+
+    建库时必须显式绑定向量模型，否则解析阶段直接失败：
+    `failed to get embedding model: model ID cannot be empty`（2026-11-04 现场实测）。
+    注意不要走 /initialization/initialize —— 该接口字段校验严格，
+    且会把已有配置覆盖成空，实测反而更容易踩坑。
+    """
+    rows = api("GET", "/api/v1/models")
+    rows = rows if isinstance(rows, list) else rows.get("data", [])
+    for m in rows or []:
+        if m.get("type") == "Embedding" and m.get("status") == "active":
+            return str(m["id"])
+    raise RuntimeError(
+        "空间内没有 status=active 的 Embedding 模型。"
+        "请先在 WeKnora 里配好 embedding 模型（TEI / OpenAI 兼容均可）再重跑。"
+    )
+
+
 # ---------- 测试数据：同一句查询词，靠 tag 区分可见性 ----------
 
 SECRET_MARKER = f"MARKER-{uuid.uuid4().hex[:8]}"
@@ -100,13 +119,15 @@ def verify_h1(keep: bool) -> None:
     print(f"\n{INFO} H1：验证 tag_ids 过滤下推\n")
     kb_id = tag_a = tag_b = doc_a = doc_b = None
     try:
+        emb_id = resolve_embedding_model()
         kb = api("POST", "/api/v1/knowledge-bases", json={
             "name": f"spike-h1-{uuid.uuid4().hex[:8]}",
             "description": "shilian 融合 spike：tag 过滤下推验证（临时库，自动清理）",
             "type": "document",
+            "embedding_model_id": emb_id,
         })
         kb_id = kb["id"] if isinstance(kb, dict) else kb
-        print(f"{INFO}   临时 KB: {kb_id}")
+        print(f"{INFO}   临时 KB: {kb_id}  embedding={emb_id[:8]}")
 
         # 建两个标签：一个模拟"授权项目"，一个模拟"越权项目"
         tag_a = api("POST", f"/api/v1/knowledge-bases/{kb_id}/tags",
@@ -118,21 +139,30 @@ def verify_h1(keep: bool) -> None:
         print(f"{INFO}   标签: authorized={tag_a_id} forbidden={tag_b_id}")
 
         # 上传两篇内容相同、标签不同的文档
+        # tag_ids 必须是**裸 id 字符串**：传 JSON 数组字符串会被当成一个不存在的
+        # 标签名，服务端直接 HTTP 400（2026-11-04 现场实测）。多标签用重复字段。
         doc_a = api("POST", f"/api/v1/knowledge-bases/{kb_id}/knowledge/file",
                     files={"file": ("authorized.txt", make_doc("授权项目"), "text/plain")},
-                    data={"tag_ids": json.dumps([tag_a_id])})
+                    data={"tag_ids": tag_a_id})
         doc_b = api("POST", f"/api/v1/knowledge-bases/{kb_id}/knowledge/file",
                     files={"file": ("forbidden.txt", make_doc("越权项目"), "text/plain")},
-                    data={"tag_ids": json.dumps([tag_b_id])})
+                    data={"tag_ids": tag_b_id})
         doc_a_id = doc_a["id"] if isinstance(doc_a, dict) else doc_a
         doc_b_id = doc_b["id"] if isinstance(doc_b, dict) else doc_b
 
-        # 等解析完成（最多 180s）
+        # 等解析完成（最多 180s）；任一文档 failed 立刻带上失败原因退出，不白等
         deadline = time.time() + 180
+        states: dict[str, Any] = {}
+        errors: dict[str, Any] = {}
         while time.time() < deadline:
             items = api("GET", f"/api/v1/knowledge-bases/{kb_id}/knowledge")
             rows = items if isinstance(items, list) else items.get("knowledge", [])
             states = {r.get("id"): r.get("parse_status") for r in rows}
+            errors = {r.get("id"): r.get("error_message") for r in rows}
+            if states.get(doc_a_id) == "failed" or states.get(doc_b_id) == "failed":
+                reason = errors.get(doc_a_id) or errors.get(doc_b_id)
+                record("H1", None, f"文档解析失败：{reason}（多为 KB 未绑定向量模型或 docreader 异常）")
+                return
             if states.get(doc_a_id) == "completed" and states.get(doc_b_id) == "completed":
                 break
             time.sleep(5)
@@ -200,7 +230,19 @@ def verify_h2() -> None:
         if not rows:
             record("H2", None, "空间内没有知识库，跳过。请先建库并上传至少一篇文档。")
             return
-        kb_id = rows[0]["id"]
+        # 挑一个确实有已解析文档的库：盲选 rows[0] 会撞上空库或解析失败的库，
+        # 那种情况下问答必然无引用，属于验证脚本自身的假阴性。
+        kb_id = None
+        for cand in rows:
+            cid = cand["id"]
+            docs = api("GET", f"/api/v1/knowledge-bases/{cid}/knowledge")
+            docs = docs if isinstance(docs, list) else (docs or {}).get("knowledge", [])
+            if any(d.get("parse_status") == "completed" for d in docs):
+                kb_id = cid
+                break
+        if not kb_id:
+            record("H2", None, "空间内没有任何含已解析文档的知识库，跳过。先跑 H1 或手动上传文档。")
+            return
 
         session = api("POST", "/api/v1/sessions", json={"title": f"spike-h2-{uuid.uuid4().hex[:6]}"})
         session_id = session["id"] if isinstance(session, dict) else session
@@ -273,11 +315,28 @@ def make_external_token(secret: str, tenant_id: str, user_id: str, ttl: int = 60
     return (signing_input + b"." + sig).decode()
 
 
+def _unsigned_token(tenant_id: str, user_id: str) -> str:
+    """alg=none 的裸令牌：签名段留空。合规实现必须拒绝（HTTP 401）。"""
+    body = base64.urlsafe_b64encode(json.dumps({
+        "alg": "none", "typ": "JWT"}, separators=(",", ":")).encode()).rstrip(b"=")
+    claims = base64.urlsafe_b64encode(json.dumps({
+        "aud": "weknora", "sub": user_id,
+        "tenant_id": int(tenant_id) if str(tenant_id).isdigit() else tenant_id,
+        "iat": int(time.time()), "exp": int(time.time()) + 600,
+    }, separators=(",", ":")).encode()).rstrip(b"=")
+    return f"{body.decode()}.{claims.decode()}."
+
+
 def verify_h3() -> None:
     """外部用户主体令牌能否承载 shilian 的会话身份（替代 X-User-Id 注入）。
 
     需要空间侧先开启 api-principal-config 的 signed_token 模式并配置共享密钥。
     未配置时本项 SKIP，不视为失败。
+
+    **判据必须含反向对照**（2026-11-04 现场实测教训）：
+    `X-External-User-Token` 在 mode=tenant 下被整个忽略——伪造签名也返回 200。
+    因此「合法令牌拿到 200」本身不构成通过，只有伪造/过期/跨租户全部拿到 401
+    才说明服务端真的在做密码学校验。
     """
     print(f"\n{INFO} H3：验证外部用户主体令牌\n")
     secret = os.environ.get("WEKNORA_EXTERNAL_USER_SECRET", "")
@@ -288,22 +347,44 @@ def verify_h3() -> None:
                "再带这两个环境变量重跑。")
         return
     try:
-        token = make_external_token(secret, TENANT_ID, "u_10231")
-        resp = httpx.get(
-            f"{BASE}/api/v1/knowledge-bases",
-            headers=headers({"X-External-User-Token": token}),
-            timeout=30.0,
-        )
-        if resp.status_code == 200:
+        cases = {
+            "合法令牌": make_external_token(secret, TENANT_ID, "u_10231"),
+            "伪造签名": make_external_token("definitely-wrong-secret", TENANT_ID, "u_10231"),
+            "过期令牌": make_external_token(secret, TENANT_ID, "u_10231", ttl=-1200),
+            "跨租户": make_external_token(secret, "999999", "u_10231"),
+            "alg=none": _unsigned_token(TENANT_ID, "u_10231"),
+            "垃圾串": "not.a.jwt",
+        }
+        seen: dict[str, int] = {}
+        for label, tok in cases.items():
+            resp = httpx.get(
+                f"{BASE}/api/v1/knowledge-bases",
+                headers=headers({"X-External-User-Token": tok}),
+                timeout=30.0,
+            )
+            seen[label] = resp.status_code
+            print(f"{INFO}   {label:8s} -> HTTP {resp.status_code}")
+
+        accepted = seen.get("合法令牌") == 200
+        rejected = all(seen[k] in (401, 403) for k in
+                       ("伪造签名", "过期令牌", "跨租户", "alg=none", "垃圾串"))
+        if accepted and rejected:
             record("H3 外部主体令牌可承载会话身份", True,
-                   "令牌被接受。shilian 可用它把 user_id 透传给 WeKnora，"
-                   "替代现有 X-User-Id 注入模型，审计口径可对齐。")
-        elif resp.status_code in (401, 403):
+                   "合法令牌 200 且五种伪造全部 401/403，说明服务端在密码学校验该令牌。"
+                   "shilian 可用它把 user_id 透传给 WeKnora，替代 X-User-Id 注入，审计口径可对齐。"
+                   "注意：WeKnora 只验签不做用户级授权（不同 sub 看到的库相同），"
+                   "权限判定仍必须由 shilian 负责。")
+        elif not accepted:
             record("H3", False,
-                   f"HTTP {resp.status_code}：{resp.text[:300]}。"
-                   "→ 检查空间是否开启 signed_token 模式、密钥是否一致、tenant_id claim 是否匹配。")
+                   f"合法令牌被拒 HTTP {seen.get('合法令牌')} → 检查空间是否开启 signed_token 模式、"
+                   f"密钥是否一致、tenant_id claim 是否匹配。")
         else:
-            record("H3", None, f"非预期状态码 HTTP {resp.status_code}：{resp.text[:300]}")
+            leak = [k for k, v in seen.items()
+                    if k != "合法令牌" and v not in (401, 403)]
+            record("H3", False,
+                   f"合法令牌 200，但 {leak} 未被拒绝（状态码 "
+                   f"{[seen[k] for k in leak]}）→ header 被服务端忽略或校验形同虚设，"
+                   "不能用于承载身份。")
     except Exception as exc:  # noqa: BLE001
         record("H3", None, f"执行异常：{type(exc).__name__}: {exc}")
 

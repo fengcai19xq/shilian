@@ -191,7 +191,7 @@ WeKnora 2026 年被披露过 SQL 注入至 RCE、MCP 命令注入、跨租户越
 
 | 期 | 内容 | 验收口径 |
 | --- | --- | --- |
-| **Spike** | 验证 tag 下推真实性、gateway 作为厂商被调通、流式、外部主体令牌 | 见 SPIKE-REPORT.md §4；离线部分已完成 |
+| **Spike** | 验证 tag 下推真实性、gateway 作为厂商被调通、流式、外部主体令牌 | ✅ **已全部完成**：离线 4 项（26 项测试）+ 现场 H1/H2/H3 三项 PASS（2026-11-04，见 SPIKE-REPORT.md §2.2 与 §4） |
 | **P1** | gateway OpenAI 兼容层 + tenant 出账；`RetrievalBackend` SPI 与 WeKnoraAdapter；双后端并存 | 同一评测集在 RAGFlow / WeKnora 跑分对比 |
 | **P2** | ingest 切 docreader；Dify 退役；web 双前端切分 | T01 端到端在新底座跑通 |
 | **P3** | Wiki 辅助标注、MCP 发布、数据源连接器、Lite 形态、多租户红队 | 红队报告零高危 |
@@ -202,10 +202,12 @@ WeKnora 2026 年被披露过 SQL 注入至 RCE、MCP 命令注入、跨租户越
 
 | 风险 | 等级 | 缓解 |
 | --- | --- | --- |
-| `tag_ids` 在真实引擎上的下推行为与文档不符 | 高 | Spike H1 优先验证；不符则改走「dept 也升格为 KB 维度」或上游 PR |
+| `tag_ids` 在真实引擎上的下推行为与文档不符 | ~~高~~ **已排除** | H1 现场验证通过（2026-11-04）：无匹配 tag 返回 0 篇，确为引擎级下推，无需上游 PR。**附带结论：未打标签文档会被 tag 过滤排除，`project::__none__` 哨兵标签为必需** |
 | KB 数量随部门增长膨胀（4×N，多租户再乘 tenant） | 中 | 先评估真实部门数上限；必要时 dept 改为 tag + KB 只编码密级，代价是多一道应用层校验 |
-| 流式未实现导致 WeKnora 原生问答不可用 | 中 | D2 已规定用户入口用 shilian web；流式列 P1 |
-| 上游迭代快，patch 队列失控 | 中 | 坚持零改动；仅 H1 失败时才引入 patch |
+| 流式未实现导致 WeKnora 原生问答不可用 | 中 | H2 现场验证通过：底座 SSE 链路完整（`references`/`answer`/`complete` 齐全），阻塞点只剩我们 gateway 的 `stream=true → 501`；D2 已规定用户入口用 shilian web |
+| 上游迭代快，patch 队列失控 | 中 | 坚持零改动；H1 已通过，**当前无引入 patch 的理由** |
+| **开启 `signed_token` 会让纯 API Key 调用一起 401**（H3 新发现） | 高 | 该开关是**空间级全局**、不按调用可切，与「gateway 作为 OpenAI 兼容厂商接入」的形态直接冲突。对接前必须先盘清该空间内**全部** API Key 调用方并逐一改为带令牌，否则表现为底座整体不可用。现网保持 `mode=tenant` |
+| **误以为 WeKnora 能替我们做用户级授权**（H3 新发现） | 高 | 实测不同 `sub` 的合法令牌看到的知识库**完全相同**：上游只验签、不鉴权。红线 1（权限过滤必须在检索请求里完成）**仍全部由 shilian 承担**，H3 只解决「上游知道这是谁」以便审计与配额 |
 | 上游 CVE 传导 | 高 | §8 纪律 + 红队 |
 | 人力与额度不足（现有 3 个任务因额度 blocked） | 高 | 白拿能力优先做减法（退役 Dify、复用 docreader），而非加功能 |
 
@@ -233,9 +235,13 @@ WeKnora 2026 年被披露过 SQL 注入至 RCE、MCP 命令注入、跨租户越
 
 > 评审依据：
 > - spike/SPIKE-REPORT.md 离线 4 项假设全部验证通过（26 项测试全绿）
+> - **现场 H1/H2/H3 三项假设全部 PASS（2026-11-04 直连 53 实例验完）**，结论与两条新增高风险约束见 §10 与 SPIKE-REPORT.md §2.2
 > - 53 测试环境 WeKnora 全栈已部署并跑通（app+docreader+postgres+redis+frontend 五容器 healthy）
 > - 千问 API（qwen-plus）和 TEI embedding（bge-m3）已配通，文档解析→检索→问答全链路验证通过
 > - nginx SSE/API 分离修复已落地，前端登录超时问题已解决
 >
 > 契约层变更已落地：`contracts/platform.md`（WK04）、`contracts/weknora-integration.md`（WK05）。
 > 启动 W1 阶段。
+>
+> ⚠ 现场验证新增一条**待拍板**（尚无决策签字）：`signed_token` 为空间级全局开关，开启后纯 API Key 调用一并失效，与 D1「gateway 作为 OpenAI 兼容厂商接入」的形态冲突。
+> 建议：现网维持 `mode=tenant`；是否切 `signed_token` 留到 WK17 OIDC 统一登录落地后再议（若身份已由 shilian 侧校验，则不依赖上游该开关）。**该建议需数智化中心确认后再执行。**

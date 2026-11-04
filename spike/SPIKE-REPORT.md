@@ -7,12 +7,12 @@
 
 ## 1. 执行环境说明（重要）
 
-本机 Docker 守护进程未运行，且当前执行环境无网络访问，无法拉起 WeKnora 全栈实例（app + docreader + ParadeDB + Redis + 模型服务）。因此本次 spike 拆成两部分：
+本机 Docker 守护进程未运行，无法在本地拉起 WeKnora 全栈实例（app + docreader + ParadeDB + Redis + 模型服务）。因此本次 spike 拆成两部分：离线部分在本机用假 gateway 注入验证设计语义；现场部分直连 53 上已部署的实例（`http://192.168.200.53:8090`）完成。
 
 | 部分 | 状态 | 说明 |
 | --- | --- | --- |
 | **离线可验证** | ✅ 已完成并跑通 | 编码语义、协议翻译、安全不变量——用假 gateway 注入，26 项测试全绿 |
-| **现场待验证** | ⏳ 脚本已就绪 | H1/H2/H3 需真实实例，`verify_live.py` 一跑即出结论 |
+| **现场验证** | ✅ 三项全部通过（2026-11-04） | 53 上的真实实例直连完成 H1/H2/H3，详见 §2.2；过程中修掉验证脚本自身的四个缺陷 |
 
 这个拆分不是妥协：**离线部分恰好覆盖了「设计是否会出错」，现场部分只覆盖「上游行为是否与文档一致」**。前者是设计风险（已由测试钉死），后者是集成风险（有明确 fallback）。
 
@@ -73,28 +73,48 @@ tag 槽内部是 IN(OR)。若 dept 与 project 共用，「融资部 或 PRJ-202
 
 另验证编码可逆性（`test_kb_name_is_reversible_for_every_dept_and_sensitivity`）与中文部门 slug 无碰撞（`test_slug_is_collision_free_across_depts`）——**编码不可逆会导致 ingest 打标与检索解析对不上**，属于必须提前排除的隐患。
 
-### 2.2 现场待验证 ⏳
+### 2.2 现场验证 ✅ 三项全部通过（2026-11-04，53 实例）
 
-| # | 假设 | 验证方法 | 失败时的 fallback |
+| # | 假设 | 结论 | 实测证据 |
 | --- | --- | --- | --- |
-| **H1** | `tag_ids` 在真实引擎上是 SQL 级下推，而非取回后筛选 | 两篇内容相同、仅 tag 不同的文档；先建基线（无过滤应召回两篇），再只授权一个 tag（应仅召回一篇），最后用一个谁都没有的 tag（应返回空） | dept 也升格为 KB 维度；或向上游提 PR 增加过滤能力 |
-| **H2** | SSE 流式问答可用，shim 的 501 是唯一阻塞点 | 建会话 → `knowledge-chat` 流式读取 → 断言事件序列含 `answer`+`complete` 且 answer 非空 | 若非唯一阻塞点，P1 需重排优先级 |
-| **H3** | 外部用户主体令牌可承载 shilian 会话身份 | 按上游约定签 HS256 JWT（`aud=weknora`、`exp`、`tenant_id`、`sub`），带 `X-External-User-Token` 调接口 | 继续用现有 `X-User-Id` 注入模型（已验证可行，H3 只是更优解） |
+| **H1** | `tag_ids` 是引擎级下推，而非取回后筛选 | **通过** | 基线（无 tag）召回 2 篇；只授权 auth → 仅召回 auth 一篇；只授权 forb → 仅召回 forb；用一个谁都没有的 tag → **0 篇**。应用层筛选做不到第三步。 |
+| **H2** | SSE 流式问答可用 | **通过** | 事件序列 `agent_query → tool_call → tool_result → references → answer → complete`，answer 396 字符，references 2 条。 |
+| **H3** | 外部主体令牌可承载 shilian 会话身份 | **通过（有重要前提，见下）** | 合法令牌 200；伪造签名 / 过期 / 跨租户 / `alg=none` / 垃圾串 **全部 401**。 |
 
-**H1 的验证设计特别说明**：单看「授权 tag 后只返回一篇」无法区分引擎级下推与应用层筛选——两种实现返回体相同。因此脚本额外做了两步：基线召回（确认两篇都能被检索到，排除 embedding 未配置导致的假阴性）+ 无匹配 tag 时返回空（确认过滤真的作用于候选集），并把 `meta.rerank.candidate_count` 打进结论供人工判读。
+**H2 附带收获**：answer 正文里带内联引用标记 `<kb doc="credit.txt" chunk_id="..." kb_id="...">`，`chunk_id` 可直接用于 shilian 侧的溯源与页码映射，不必额外回查。
+
+**H1 顺带确认哨兵标签为必需**：未打标签的文档在基线可见、但一旦传 `tag_ids` 就被排除——与 §2.1 陷阱 3 的推断一致，`project::__none__` 哨兵不能省。
+
+#### H3 的两个必须先解决的问题（对接前必须拍板）
+
+1. **`signed_token` 是空间级全局开关，不是按调用可切**。一旦开启，**所有不带令牌的 API Key 调用会一起 401**（实测：`仅 API Key` → 401）。这与「gateway 作为 OpenAI 兼容厂商接入 WeKnora」的形态冲突——除非每次调用都由 shilian 现签一枚令牌。开启前必须确认调用方全覆盖，否则表现为「底座整体挂掉」。
+2. **WeKnora 只验签、不做用户级授权**。实测不同 `sub` 的令牌看到的知识库集合**完全相同**。所以红线 1（权限过滤在检索请求里完成）**仍然且必须由 shilian 承担**，H3 打通只是让 WeKnora 侧能识别「这是谁」以便做审计与配额，**不能**指望它替我们隔离数据。
+
+次要观察：`iat` 不校验（未来时间戳被接受）；`require_direct_header=true` 时缺令牌会被拒（可用于强制模式）。
 
 现场执行：
 
 ```bash
 export WEKNORA_BASE_URL=http://<host>:8080
-export WEKNORA_API_KEY=<空间级 Key，需 retrieve+ingest+chat>
+export WEKNORA_API_KEY=<空间级 Key>
 export WEKNORA_TENANT_ID=<空间 ID>
-python3 spike/weknora/verify_live.py            # 全跑
-python3 spike/weknora/verify_live.py --only h1  # 只跑 H1
-python3 spike/weknora/verify_live.py --keep     # 保留临时 KB 排障
+python3 spike/weknora/verify_live.py --only h1  # 逐项跑，见下方注意事项
+python3 spike/weknora/verify_live.py --only h2
+WEKNORA_EXTERNAL_USER_SECRET=<HMAC 密钥> python3 spike/weknora/verify_live.py --only h3
 ```
 
-脚本以只读为主：H1 会创建临时 KB 与两篇临时文档，结束后自动清理，**不触碰任何已有知识库**。
+**注意：H3 要单独跑。** `signed_token` 模式一开，H1/H2 的纯 API Key 调用会全部 401（见上文问题 1），因此三项不能一把全跑；跑 H3 前先开、跑完立刻复原 `mode=tenant`。
+
+脚本以只读为主：H1 创建临时 KB 与两篇临时文档，结束自动清理，**不触碰任何已有知识库**；H3 只读写空间的 principal 配置，脚本内不做该变更（避免给现场留残留），由执行人显式开关。
+
+#### 本轮现场同时修掉了验证脚本自身的四个缺陷
+
+这几个坑都是「脚本错、代码没错」，记录下来避免再次误判底座能力：
+
+1. **上传时 `tag_ids` 必须是裸 id 字符串**。传 JSON 数组字符串（`'["<id>"]'`）会被当成一个不存在的标签名，服务端直接 `HTTP 400 标签 [...] 不存在`。生产代码 `services-java/ingest/HttpWeKnoraClient.multipart` 用的是裸 id 重复字段形态，**本来就是对的**——只有 spike 脚本写错了。
+2. **建库时必须绑定向量模型**（`embedding_model_id`）。否则文档解析必然失败并报 `failed to get embedding model: model ID cannot be empty`，表现为「180 秒超时、无法判定」，容易被误读成 docreader 故障。也不要改用 `/initialization/initialize`：该接口字段校验严格，且会把已有配置覆盖成空。
+3. **H2 原先盲选 `rows[0]`**，撞上空库或解析失败的库就会判成失败——改为挑确实含已解析文档的库。
+4. **H3 原判据只看「合法令牌返回 200」就判 PASS**，这是假阳性：`mode=tenant` 下该 header 被整个忽略，**伪造签名同样返回 200**。现改为必须同时满足「合法 200」与「五种伪造全部 401」才通过。这一条最值得记住——**验证安全能力时，反向判据不是加分项，是必需项**。
 
 ---
 
@@ -127,22 +147,23 @@ cd spike && python3 -m pytest weknora/tests/test_spike.py -q
 
 | 验收项 | 状态 |
 | --- | --- |
-| 确认检索侧过滤可下推，红线 1 可在新底座成立 | ✅ A1（文档+引擎实现双向确认），H1 现场复核 |
-| 确认 gateway 可作为上游模型厂商，红线 3/4 能力保留 | ✅ A2/A3（离线），H2 补流式 |
-| 权限四元组映射方案无安全漏洞 | ✅ A4，含三个陷阱的修复与回归测试 |
-| 一次 L3 问答，gateway 日志出现脱敏与 `switched_reason` | ⏳ 需现场实例；离线已验证 `switched_reason` 透出路径（响应头 + 日志 + system_fingerprint） |
-| 检索结果不含无权文档 | ⏳ H1 现场验证 |
+| 确认检索侧过滤可下推，红线 1 可在新底座成立 | ✅ A1（文档+引擎实现双向确认）+ **H1 现场复核通过** |
+| 确认 gateway 可作为上游模型厂商，红线 3/4 能力保留 | ✅ A2/A3（离线）+ **H2 现场流式通过**（`stream` 事件链完整、含 references） |
+| 权限四元组映射方案无安全漏洞 | ✅ A4，含三个陷阱的修复与回归测试；H1 实测确认哨兵标签为必需 |
+| 一次 L3 问答，gateway 日志出现脱敏与 `switched_reason` | ⏳ 需端到端环境（WK13）；离线已验证 `switched_reason` 透出路径（响应头 + 日志 + system_fingerprint），底座侧流式能力由 H2 确认 |
+| 检索结果不含无权文档 | ✅ **H1 现场验证通过**：无匹配 tag 返回 0 篇，未授权文档不进入结果 |
 
 ---
 
 ## 5. 结论与建议
 
-**融合方案技术上成立，可以进入 P1。** 最关键的 P0 阻塞项（过滤下推）已解除，且验证过程中发现的三个陷阱都有修复方案与回归测试。
+**融合方案技术上成立，P0 阻塞项已全部解除。** 离线 26 项测试钉住设计语义，现场 H1/H2/H3 三项假设全部通过（2026-11-04）；验证过程中发现的三个陷阱都有修复方案与回归测试。
 
-三条必须带进评审的结论：
+四条必须带进决策的结论：
 
 1. **红线 4 无法在 WeKnora 原生 UI 满足**（OpenAI 协议体无处承载 `switched_reason`）→ 面向最终用户的问答入口必须是 shilian web，上游 UI 只作管理面。这是协议信息容量限制，不是实现取舍。
 2. **`knowledge_ids` 必须永久排除在权限过滤之外**（并集语义会绕开密级隔离）。已写成测试不变量，任何后续改动都不能让它变绿失败。
-3. **流式是 P1 首要待办**。当前 shim 对 `stream=true` 返回 501 而非静默降级——静默降级会让上游解析错乱，比明确失败更难排查。
+3. **流式的阻塞点确实只在 shilian 侧**——H2 证实底座 SSE 链路完整可用，而 `services/gateway/openai_compat.py:197` 对 `stream=true` 仍返回 501。这是**我们自己的待办**，不再是底座风险。保持明确失败、不静默降级的做法是对的：降级会让上游解析错乱，比 501 更难排查。
+4. **H3 可用但不能当成权限方案**（详见 §2.2）：`signed_token` 是空间级全局开关，开启后所有纯 API Key 调用一起 401；且 WeKnora **只验签、不做用户级授权**（不同 `sub` 看到的库完全相同）。红线 1 的权限过滤仍且必须全部由 shilian 承担。
 
-建议评审顺序：先拍 D1（推翻不接入结论）与 D2（用户入口），再走 H1 现场验证；H1 通过即可启动 P1 的 `RetrievalBackend` SPI 抽取。
+方法论上值得留一条：**验证安全能力时，反向判据不是加分项，是必需项**。H3 原判据只看「合法令牌拿到 200」，而该 header 在未开启的模式下被整个忽略——伪造签名同样能拿到 200。差一步就把「功能没生效」读成「功能已验证通过」。
