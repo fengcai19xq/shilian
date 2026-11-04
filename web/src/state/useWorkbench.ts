@@ -55,6 +55,8 @@ function describeError(error: unknown): string {
 export function useWorkbench() {
   const api = useApi()
   const [principal, setPrincipal] = useState<Principal | null>(null)
+  /** 会话身份是否取不到（未登录/会话过期）。与「还没加载完」区分开，避免界面一直转圈。 */
+  const [unauthenticated, setUnauthenticated] = useState(false)
   const [models, setModels] = useState<ModelOption[]>([])
   const [conversationId, setConversationId] = useState(CONVERSATIONS[0].conversation_id)
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, Message[]>>({})
@@ -64,7 +66,11 @@ export function useWorkbench() {
   const [pending, setPending] = useState(false)
 
   useEffect(() => {
-    api.getPrincipal().then(setPrincipal, () => setPrincipal(null))
+    setPrincipal(null)
+    setUnauthenticated(false)
+    api
+      .getPrincipal()
+      .then(setPrincipal, () => setUnauthenticated(true))
     void api.listModels().then(setModels)
   }, [api])
 
@@ -233,6 +239,7 @@ export function useWorkbench() {
 
   return {
     principal,
+    unauthenticated,
     models,
     conversations,
     conversationId,

@@ -8,6 +8,8 @@ const AGENTS = ['融资助手', '人事助手', '经营查数']
 
 interface Props {
   principal: Principal | null
+  /** 会话身份取不到（未登录/会话过期）；与「还没加载完」区分开 */
+  unauthenticated?: boolean
   conversations: Conversation[]
   conversationId: string
   onNewConversation: () => void
@@ -18,6 +20,7 @@ interface Props {
 
 export default function LeftSidebar({
   principal,
+  unauthenticated,
   conversations,
   conversationId,
   onNewConversation,
@@ -80,6 +83,8 @@ export default function LeftSidebar({
             <div>{principal.user_id}</div>
             <div>{principal.dept.join(' / ')}</div>
           </>
+        ) : unauthenticated ? (
+          <div>未登录或会话已过期</div>
         ) : (
           <div>加载中…</div>
         )}

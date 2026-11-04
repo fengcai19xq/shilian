@@ -26,6 +26,15 @@ function buildProxy(env: Record<string, string>): Record<string, ProxyOptions> {
       rewrite: (path) => path.replace(/^\/api\/gateway/, ''),
     }
   }
+  // 会话身份（WK17）：前端向 /api/identity/me 询问「我是谁」，答案由服务端从会话解析，
+  // 不再由构建期变量把权限主体交给客户端。
+  if (env.WECOM_SYNC_URL) {
+    proxy['/api/identity'] = {
+      target: env.WECOM_SYNC_URL,
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, ''),
+    }
+  }
   // 平台管理面入口（WK12）。留空则不代理（未接入 WeKnora 的环境）。
   // 注意：WeKnora 是 SPA，其 index.html 引用的是绝对路径资源（/assets/…、/api/…），
   // 反代到子路径时这些请求不会带 /weknora 前缀，会打到本前端而 404，

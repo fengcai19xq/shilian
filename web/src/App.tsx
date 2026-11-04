@@ -15,6 +15,7 @@ export default function App() {
     <div className={styles.layout}>
       <LeftSidebar
         principal={workbench.principal}
+        unauthenticated={workbench.unauthenticated}
         conversations={workbench.conversations}
         conversationId={workbench.conversationId}
         onNewConversation={workbench.newConversation}

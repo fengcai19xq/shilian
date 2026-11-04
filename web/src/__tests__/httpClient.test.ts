@@ -44,8 +44,31 @@ describe('http 客户端', () => {
     expect(calls[0].path).toBe('/gw/retrieval/search')
   })
 
-  it('未配置会话主体时 getPrincipal 拒绝，不在前端伪造权限', async () => {
-    await expect(createHttpApi().getPrincipal()).rejects.toThrow('未配置会话权限主体')
+  it('未注入会话主体时向 /identity/me 取身份，不在前端伪造权限', async () => {
+    const { calls } = mockFetch({ '/api/identity/me': PRINCIPAL })
+    await expect(createHttpApi().getPrincipal()).resolves.toEqual(PRINCIPAL)
+    expect(calls[0].path).toBe('/api/identity/me')
+    // GET：不携带请求体，也不由前端自报主体
+    expect(calls[0].body).toEqual({})
+    expect(calls[0].headers['Content-Type']).toBeUndefined()
+  })
+
+  it('本地联调注入 X-User-Id 时才带上；网关态由服务端会话覆盖', async () => {
+    const { calls } = mockFetch({ '/api/identity/me': PRINCIPAL })
+    await createHttpApi({ userId: 'u_1' }).getPrincipal()
+    expect(calls[0].headers['X-User-Id']).toBe('u_1')
+  })
+
+  it('构建期注入主体时直接用，不打网络（本地联调免起后端）', async () => {
+    const { calls } = mockFetch({})
     await expect(createHttpApi({ principal: PRINCIPAL }).getPrincipal()).resolves.toEqual(PRINCIPAL)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('会话失效按状态码抛出，前端据此提示重新登录', async () => {
+    mockFetch({ '/api/identity/me': { status: 401 } })
+    const err = await createHttpApi().getPrincipal().catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiHttpError)
+    expect(err).toMatchObject({ service: 'identity', status: 401 })
   })
 })

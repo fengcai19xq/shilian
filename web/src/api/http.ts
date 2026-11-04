@@ -1,8 +1,9 @@
 // 真实 HTTP 客户端：与 mock 实现同一个 WorkbenchApi 接口。
-// 路径统一挂在 /api 前缀下，由 Vite dev proxy（或部署时的反向代理）转发到三个服务：
+// 路径统一挂在 /api 前缀下，由 Vite dev proxy（或部署时的反向代理）转发到各服务：
 //   /api/decide/route      → {DECIDE_URL}/decide/route
 //   /api/retrieval/search  → {RETRIEVAL_URL}/retrieval/search
 //   /api/gateway/v1/invoke → {GATEWAY_URL}/v1/invoke
+//   /api/identity/me       → {WECOM_SYNC_URL}/identity/me（会话身份，WK17）
 import type { WorkbenchApi } from './mock'
 import { MODEL_CATALOG } from './models'
 import type {
@@ -16,7 +17,7 @@ import type {
   SearchResponse,
 } from './types'
 
-export type ServiceName = 'decide' | 'retrieval' | 'gateway'
+export type ServiceName = 'decide' | 'retrieval' | 'gateway' | 'identity'
 
 /** 服务返回非 2xx。只保留服务名与状态码，不透传响应体，避免把后端信息带到界面上 */
 export class ApiHttpError extends Error {
@@ -88,6 +89,20 @@ export function createHttpApi(options: HttpApiOptions = {}): WorkbenchApi {
     return (await res.json()) as T
   }
 
+  /**
+   * 会话身份端点用 GET。
+   * 过渡模式（网关已完成外部鉴权）下带上 X-User-Id：生产由网关按会话态覆盖，
+   * 本地联调才等于自报；oidc.enabled=true 后服务端直接忽略此头，只认 id_token。
+   */
+  async function get<T>(service: ServiceName, path: string) {
+    const headers: Record<string, string> = {}
+    if (options.userId) headers['X-User-Id'] = options.userId
+    const doFetch = options.fetchImpl ?? fetch
+    const res = await doFetch(`${baseUrl}${path}`, { method: 'GET', headers })
+    if (!res.ok) throw new ApiHttpError(service, res.status)
+    return (await res.json()) as T
+  }
+
   return {
     route(req: RouteRequest) {
       return post<RouteResponse>(
@@ -113,8 +128,9 @@ export function createHttpApi(options: HttpApiOptions = {}): WorkbenchApi {
       throw new Error(`matcher 未接入 http 模式：${task_id}`)
     },
     async getPrincipal() {
+      // 本地联调可直接注入主体，省掉起后端；生产不注入，身份一律来自服务端
       if (options.principal) return options.principal
-      throw new Error('未配置会话权限主体')
+      return get<Principal>('identity', '/identity/me')
     },
   }
 }
