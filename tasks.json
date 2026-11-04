@@ -357,10 +357,10 @@
       "deps": [
         "WK02"
       ],
-      "status": "todo",
+      "status": "done",
       "acceptance": "H1 tag_ids 为引擎级下推；H2 SSE 流式可用；H3 外部主体令牌可承载会话身份",
       "session": "",
-      "note": "运行 spike/weknora/verify_live.py；H1 失败则走 fallback（dept 升格为 KB 维度或上游 PR），H2 失败则 P1 重排优先级，H3 失败则继续用现有 X-User-Id 注入"
+      "note": "2026-11-04 完成：直连 53 实例（http://192.168.200.53:8090）三项全部 PASS。H1 基线召回 2 篇 → 只授权 auth 仅召回 auth、只授权 forb 仅召回 forb、无匹配 tag 返回 0 篇（应用层筛选做不到第三步），并实测确认未打标签文档会被 tag 过滤排除 → project::__none__ 哨兵标签为必需。H2 事件链 agent_query→tool_call→tool_result→references→answer→complete，answer 396 字含 references 2 条，且正文带 <kb doc/chunk_id/kb_id> 内联标记可直接用于溯源。H3 合法令牌 200、伪造签名/过期/跨租户/alg=none/垃圾串全部 401。⚠ H3 两条对接约束：① signed_token 是空间级全局开关，开启后所有纯 API Key 调用一起 401，与「gateway 作为 OpenAI 厂商接入」形态冲突，故 H3 必须单独跑、跑完复原 mode=tenant；② WeKnora 只验签不做用户级授权（不同 sub 看到的库完全相同），红线 1 的权限过滤仍全部由 shilian 承担。顺带修掉 verify_live.py 四个缺陷（详见 SPIKE-REPORT.md §2.2）：上传 tag_ids 必须裸 id（原传 JSON 数组会 400，生产 Java 侧写法本就正确）、建库必须绑 embedding_model_id（否则解析必然失败并表现为超时）、H2 原先盲选首库会假阴性、H3 原判据只看合法 200 属假阳性已补反向判据。验证残留已清理：删除 4 个临时库与 2 把临时 API Key，principal 复原 tenant。"
     },
     {
       "id": "WK04",
@@ -564,5 +564,5 @@
       "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）。2026-11-04 shilian 侧会话校验已落地：wecom-sync 提供 GET /identity/me（IdTokenVerifier 支持 RS256/ES256/HS256，拒 alg=none 与算法混淆，校验 iss/aud/exp/nbf，失败不回显 token），web 身份改为向服务端索取、不再用构建期变量固化，未登录显式提示；wecom-sync 106 项 + web 44 项测试全绿。剩余（未完成，故不标 done）：① 53 现场对接真实 IdP 并置 DISABLE_REGISTRATION=true；② Lite 单二进制形态验证；③ Lite → K8s 迁移文档。deps 的 WK13 仍为 todo，本项 ①②③ 依赖其验收环境。"
     }
   ],
-  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。"
+  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。"
 }
