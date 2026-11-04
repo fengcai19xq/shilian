@@ -32,6 +32,14 @@ def test_invoke_返回体符合契约(service, factory):
     assert "示例客户甲" in data["output"]["text"]
 
 
+def test_generate_正文在顶层text且与output一致(service):
+    """契约要求 generate 的答案在顶层 text；output 保留供老调用方读取，两者须一致。"""
+    client = TestClient(create_app(service))
+    data = client.post("/v1/invoke", json=_body()).json()
+    assert isinstance(data["text"], str) and data["text"]
+    assert data["text"] == data["output"]["text"]
+
+
 def test_非法密级返回422(service):
     client = TestClient(create_app(service))
     assert client.post("/v1/invoke", json=_body(sensitivity="L9")).status_code == 422

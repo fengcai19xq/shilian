@@ -88,6 +88,7 @@ class GatewayService:
             model=decision.model.name,
             channel=decision.model.channel,
             switched_reason=decision.switched_reason,
+            text=output.get("text"),
             output=output,
             usage=usage,
             budget_alert=budget_after.message,

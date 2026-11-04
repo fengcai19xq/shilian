@@ -24,6 +24,9 @@ models:
     purposes: [generate, decide]
     endpoint: https://api.deepseek.com/v1
     api_key_env: GATEWAY_DEEPSEEK_API_KEY
+    # 发往厂商的真实模型 id（内部 name 不变，前端目录与出账键仍用 name）。
+    # 2026-11-04 实测 api.deepseek.com 只认 deepseek-flash/deepseek-v4-pro，旧名 deepseek-v3 已 400。
+    upstream_model: deepseek-chat
     price_prompt_cny_per_1k: 0.002
     price_completion_cny_per_1k: 0.008
 
@@ -32,6 +35,7 @@ models:
     purposes: [generate, decide]
     endpoint: https://api.deepseek.com/v1
     api_key_env: GATEWAY_DEEPSEEK_ENTERPRISE_API_KEY
+    upstream_model: deepseek-chat
     price_prompt_cny_per_1k: 0.004
     price_completion_cny_per_1k: 0.012
 

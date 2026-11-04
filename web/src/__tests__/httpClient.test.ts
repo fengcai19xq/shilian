@@ -35,6 +35,27 @@ describe('http 客户端', () => {
     expect(res.budget_alert).toBeUndefined()
   })
 
+  /**
+   * 回归防护：后端 InvokeResponse 的真实形状是正文在 output.text（顶层 text 为契约后补）。
+   * 此前前端只认顶层 text 与 payload.*，线上会静默显示空答案——而 mock 用的是顶层 text，
+   * 所以前端测试全绿却仍漏掉真实缺陷。两种形状都必须取到正文。
+   */
+  it('后端只给 output.text 时也能取到正文（真实 InvokeResponse 形状）', async () => {
+    mockFetch({
+      [INVOKE_PATH]: { model: 'deepseek-v3-enterprise', channel: 'enterprise_api', switched_reason: null, budget_alert: null, output: { text: '第三步是贷审会表决' }, usage: { prompt_tokens: 58, completion_tokens: 17, cost_cny: 0.000436 } },
+    })
+    const res = await createHttpApi().generate({ purpose: 'generate', sensitivity: 'L2', preferred_model: 'deepseek-v3-enterprise', payload: { query: 'q' } })
+    expect(res.text).toBe('第三步是贷审会表决')
+  })
+
+  it('顶层 text 优先于 output.text，两者一致时不重复取值', async () => {
+    mockFetch({
+      [INVOKE_PATH]: { model: 'm', output: { text: '旧位置' }, text: '新位置', usage: {} },
+    })
+    const res = await createHttpApi().generate({ purpose: 'generate', sensitivity: 'L1', preferred_model: 'm', payload: { query: 'q' } })
+    expect(res.text).toBe('新位置')
+  })
+
   it('支持自定义 baseUrl；非 2xx 抛出 ApiHttpError', async () => {
     const { calls } = mockFetch({ '/gw/retrieval/search': { status: 500 } })
     const api = createHttpApi({ baseUrl: '/gw/' })

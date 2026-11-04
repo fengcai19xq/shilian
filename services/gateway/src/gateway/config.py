@@ -18,7 +18,13 @@ DEFAULT_MASKING_PATH = Path(os.environ.get("GATEWAY_MASKING_PATH", CONF_DIR / "m
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """一个可调用模型的静态描述。密钥只记环境变量名，不记值。"""
+    """一个可调用模型的静态描述。密钥只记环境变量名，不记值。
+
+    `name` 是系统内部标识：路由选择、出账记账、前端 preferred_model 都用它，
+    改动会同时牵动契约与前端目录。`upstream_model` 才是发给模型厂商的 model id；
+    厂商改了模型名（如 DeepSeek 停掉 deepseek-v3）只需在路由表加这一行，
+    不必动内部标识。缺省（空）时沿用 name，既有配置与调用方行为完全不变。
+    """
 
     name: str
     channel: Channel
@@ -27,6 +33,12 @@ class ModelSpec:
     api_key_env: str
     price_prompt_cny_per_1k: float = 0.0
     price_completion_cny_per_1k: float = 0.0
+    upstream_model: str = ""
+
+    @property
+    def api_model(self) -> str:
+        """发给厂商的模型 id：未显式配置时等于内部名。"""
+        return self.upstream_model or self.name
 
     def supports(self, purpose: Purpose) -> bool:
         return purpose in self.purposes
@@ -110,6 +122,7 @@ def load_routing_config(path: str | Path | None = None) -> RoutingConfig:
             api_key_env=item.get("api_key_env", ""),
             price_prompt_cny_per_1k=float(item.get("price_prompt_cny_per_1k", 0.0)),
             price_completion_cny_per_1k=float(item.get("price_completion_cny_per_1k", 0.0)),
+            upstream_model=item.get("upstream_model", ""),
         )
         models[spec.name] = spec
 

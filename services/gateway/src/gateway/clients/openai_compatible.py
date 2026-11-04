@@ -60,17 +60,21 @@ class OpenAICompatibleClient:
         if purpose in (Purpose.generate, Purpose.decide):
             messages = payload.get("messages")
             if messages is None:
-                messages = [{"role": "user", "content": payload.get("prompt", "")}]
-            body: dict[str, Any] = {"model": spec.name, "messages": messages}
+                # 契约（contracts/gateway.md T07）规定 generate 必填 payload.query；
+                # prompt 是老调用方写法，两者都兜住。否则前端通用问答（只发 query、
+                # 不带 messages）会被构造成空 content，触发上游 400。
+                content = payload.get("prompt") or payload.get("query") or ""
+                messages = [{"role": "user", "content": content}]
+            body: dict[str, Any] = {"model": spec.api_model, "messages": messages}
             for key in ("temperature", "max_tokens", "top_p", "response_format"):
                 if key in payload:
                     body[key] = payload[key]
             return "/chat/completions", body
         if purpose is Purpose.embed:
-            return "/embeddings", {"model": spec.name, "input": payload.get("input", [])}
+            return "/embeddings", {"model": spec.api_model, "input": payload.get("input", [])}
         # rerank 走 OpenAI 兼容网关常见的 /rerank 扩展端点
         return "/rerank", {
-            "model": spec.name,
+            "model": spec.api_model,
             "query": payload.get("query", ""),
             "documents": payload.get("documents", []),
             "top_n": payload.get("top_n"),

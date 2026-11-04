@@ -69,11 +69,16 @@ class InvokeResponse(BaseModel):
     """统一返回体。
 
     发生任何通道/模型切换时 `switched_reason` 必须非空——静默切换视为缺陷。
+
+    正文位置（contracts/gateway.md T07 补充）：`purpose=generate` 的答案在**顶层
+    `text`**。`output` 是历史结构，保留是为了不破坏按 `output.text` 读取的老调用方
+    （如 WK06 的 OpenAI 兼容层与 gateway 自身测试）。
     """
 
     model: str
     channel: Channel
     switched_reason: str | None = None
+    text: str | None = None
     output: dict[str, Any] = Field(default_factory=dict)
     usage: Usage
     budget_alert: str | None = None

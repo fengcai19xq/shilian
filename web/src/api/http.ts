@@ -43,9 +43,18 @@ export interface HttpApiOptions {
 
 type JsonRecord = Record<string, unknown>
 
-/** gateway 契约未规定 generate 正文字段名，这里兼容 text / payload.text / payload.content / payload.answer */
+/** gateway 契约未规定 generate 正文字段名，这里兼容 text / payload.text / payload.content / payload.answer / output.text */
 function extractText(raw: JsonRecord): string {
   if (typeof raw.text === 'string') return raw.text
+  // 后端 InvokeResponse 的正经结构是 output.text；顶层 text 是契约 T07 补充要求的字段。
+  // 两者历史上出现过只给其中一个的情况，任一缺失都不得让答案静默变空。
+  const output = raw.output
+  if (output && typeof output === 'object') {
+    const o = output as JsonRecord
+    for (const key of ['text', 'content', 'answer']) {
+      if (typeof o[key] === 'string') return o[key] as string
+    }
+  }
   const payload = raw.payload
   if (payload && typeof payload === 'object') {
     const p = payload as JsonRecord

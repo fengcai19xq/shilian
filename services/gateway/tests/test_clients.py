@@ -100,3 +100,68 @@ def test_代码与配置中不含密钥明文():
     for path in src.rglob("*"):
         if path.suffix in {".py", ".yaml", ".yml"}:
             assert not pattern.search(path.read_text(encoding="utf-8")), f"疑似密钥：{path}"
+
+
+def test_仅有query时构造成用户消息(routing_config, monkeypatch):
+    """契约规定 generate 必填 payload.query（前端通用问答就只发它）。
+
+    回归防护：此前只认 prompt，query 被忽略后发出空 content，真实上游返回 400。
+    """
+    spec = routing_config.models["deepseek-v3-enterprise"]
+    monkeypatch.setenv(spec.api_key_env, FAKE_KEY)
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "答"}}],
+                                         "usage": {"prompt_tokens": 3, "completion_tokens": 1}})
+
+    _client(handler, spec).invoke(spec, Purpose.generate, {"query": "授信流程是什么"})
+    assert seen["body"]["messages"] == [{"role": "user", "content": "授信流程是什么"}]
+
+
+def test_prompt缺失时用query兜底(routing_config, monkeypatch):
+    """老字段 prompt 仍在时不动其行为（向后兼容）；缺 prompt 才用契约字段 query。"""
+    spec = routing_config.models["deepseek-v3-enterprise"]
+    monkeypatch.setenv(spec.api_key_env, FAKE_KEY)
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "答"}}], "usage": {}})
+
+    client = _client(handler, spec)
+    # 只有 prompt：老调用方行为不变
+    client.invoke(spec, Purpose.generate, {"prompt": "老字段"})
+    assert seen["body"]["messages"][0]["content"] == "老字段"
+    # 两者都有：prompt 优先，保证已上线调用方不被改写
+    client.invoke(spec, Purpose.generate, {"query": "新字段", "prompt": "老字段"})
+    assert seen["body"]["messages"][0]["content"] == "老字段"
+
+
+def test_配置上游模型名后发往厂商用真实名(routing_config, monkeypatch):
+    """内部 name 与厂商 model id 解耦：改上游名不影响前端选择与出账键。
+
+    回归防护：上游把 deepseek-v3 改名后，只配 upstream_model，
+    发往厂商的请求体用真实名，但 spec.name（记账/前端 preferred_model）不变。
+    """
+    from dataclasses import replace
+    base = routing_config.models["deepseek-v3-enterprise"]
+    spec = replace(base, upstream_model="deepseek-flash")
+    monkeypatch.setenv(spec.api_key_env, FAKE_KEY)
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "答"}}], "usage": {}})
+
+    _client(handler, spec).invoke(spec, Purpose.generate, {"prompt": "hi"})
+    assert seen["body"]["model"] == "deepseek-flash"   # 发往厂商
+    assert spec.name == "deepseek-v3-enterprise"        # 内部标识不变
+
+
+def test_未配上游模型名时回退内部名(routing_config):
+    """缺省（空 upstream_model）时 api_model 等于 name，既有配置零行为变化。"""
+    spec = routing_config.models["deepseek-v3-enterprise"]
+    assert spec.upstream_model == ""
+    assert spec.api_model == spec.name
