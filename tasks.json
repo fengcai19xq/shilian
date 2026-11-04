@@ -500,7 +500,22 @@
       "status": "doing",
       "acceptance": "脱敏 DOCX 上传→ingest→docreader 解析→WeKnora 入库→retrieval-proxy 权限检索→shilian web 问答溯源→清单成册闭环全链路通过；smoke.sh 或等价验收脚本在新底座跑通",
       "session": "",
-      "note": "对应原 T01 在新的底座形态下的等价验收；确保 backward compatibility——RAGFlow 底座链路同样可跑（由 WK08 双后端保证）。2026-11-04 部分完成（标 doing，未 done）：已用 SSH 部署本轮全部新代码到 53（ingest/retrieval-proxy/gateway 重建镜像，INGEST_SINK=weknora + RETRIEVE_DRIVER=weknora），现场验通主干链路——脱敏 DOCX 上传→自动建 sl-default-L2-* 库并绑 embedding→docreader 解析→indexed；权限检索矩阵 5 项全对（授权命中1、越权部门/越权项目/密级不足/无授权部门均 total=0），probe+full 双模式，decide 判 enterprise，smoke.sh 退出码 0。**问答出账已验通（原受阻项①已解）**：运维提供有效 DeepSeek key 后，企业问答 L2 返回 200、答案事实正确、usage 记账完整、channel 落在合规的 enterprise_api；通用问答（只发 payload.query）亦 200。**前端 UI 级溯源已用真实浏览器在工作台实测**：提问后回答气泡正常、2 个引用角标可点开、来源文件正是本次上传的 wk13.docx 并显示片段摘要——全链路在真实 UI 闭环。部署中修掉三个真实缺陷：① 入库与投影建库未绑向量模型，文档必然解析失败（commit 61c6a1a）；② 响应正文只在 output.text、契约与前端都要顶层 text，前端线上会静默空答案（mock 用顶层 text 所以测试全绿测不到）+ 网关把内部模型名当厂商模型 id 发送、上游已改名 deepseek-v3 致 400 + _build_request 忽略契约必填 query（commit ba0cc69）。⚠ 唯一未验项：清单成册闭环——matcher/packager 未纳入该测试 compose，且 CandidateProvider 的 HTTP 真实召回**历史上从未实现**（Python 与 Java 两侧都只有 Null/Static 桩），需新写 provider 并纳入 compose，属新增工作量而非本轮改坏。backward compat（RAGFlow 通道）本轮未切回复跑，待补。"
+      "note": "对应原 T01 在新的底座形态下的等价验收；确保 backward compatibility——RAGFlow 底座链路同样可跑（由 WK08 双后端保证）。2026-11-04 部分完成（标 doing，未 done）：已用 SSH 部署本轮全部新代码到 53（ingest/retrieval-proxy/gateway 重建镜像，INGEST_SINK=weknora + RETRIEVE_DRIVER=weknora），现场验通主干链路——脱敏 DOCX 上传→自动建 sl-default-L2-* 库并绑 embedding→docreader 解析→indexed；权限检索矩阵 5 项全对（授权命中1、越权部门/越权项目/密级不足/无授权部门均 total=0），probe+full 双模式，decide 判 enterprise，smoke.sh 退出码 0。**问答出账已验通（原受阻项已解）**：运维提供有效 DeepSeek key 后，企业问答 L2 返回 200、答案事实正确、usage 记账完整、channel 落在合规的 enterprise_api；通用问答（只发 payload.query）亦 200。**前端 UI 级溯源已用真实浏览器在工作台实测**：提问后回答气泡正常、2 个引用角标可点开、来源文件正是本次上传的 wk13.docx 并显示片段摘要——全链路在真实 UI 闭环。部署中修掉三个真实缺陷：① 入库与投影建库未绑向量模型，文档必然解析失败（commit 61c6a1a）；② 响应正文只在 output.text、契约与前端都要顶层 text，前端线上会静默空答案（mock 用顶层 text 所以测试全绿测不到）+ 网关把内部模型名当厂商模型 id 发送、上游已改名 deepseek-v3 致 400 + _build_request 忽略契约必填 query（commit ba0cc69）。**唯一未验项「清单成册闭环」已按要求拆出为独立排期任务 WK18**（CandidateProvider 的 HTTP 真实召回历史上从未实现，Python 与 Java 两侧都只有 Null/Static 桩，属新增工作量而非本轮改坏）。本任务剩余：等 WK18 完成后回归成册一段，并补 backward compatibility（切回 RAGFlow 通道复跑）。"
+    },
+    {
+      "id": "WK18",
+      "phase": "WK-2",
+      "module": "matcher-java",
+      "title": "清单成册闭环接入新底座（CandidateProvider HTTP 真实召回 + 纳入部署）",
+      "owner": "后端A",
+      "days": 6,
+      "deps": [
+        "T03"
+      ],
+      "status": "todo",
+      "acceptance": "services-java/matcher 实现调用 retrieval-proxy 的 CandidateProvider（权限过滤在检索请求内完成，禁止取回后再过滤）；matcher/packager 纳入 deploy/test compose 可在 53 起服务；黄金清单走「上传解析→匹配→三态确认→成册产物（ZIP/合订PDF/核对表）」全链路在新底座跑通；假阳性率 < 2% 回归达标；两侧 candidate 属性口径与 contracts/matching.md、retrieval.md 一致",
+      "session": "",
+      "note": "2026-11-04 从 WK13 拆出。背景：CandidateProvider 的 HTTP 真实召回从未实现（Java 侧只有 Null 桩，Python 侧只有 Null/Static），故成册闭环在旧 RAGFlow 底座上也从未端到端跑过——不是 WeKnora 切换引入的回归。工作项：① 写 HTTP 召回 provider（把 principal 四元组透传给 retrieval-proxy，红线 1）；② 补该 provider 单测（含越权不返回、属性缺失按不通过处理）；③ compose 增加 matcher/packager 与 nginx 反代规则；④ 与 packager 联调产物字节可重放。依赖 T03 黄金评测集（仍 todo）才能真正验证假阳性率，未就绪时先用脱敏样例清单跑通链路。注意 deps 刻意不列 WK13：WK13 的成册段验收要等本任务，互指会成环；本任务的实现依赖是已完成的 T04/T06/T17/T18 加上 T03 数据。"
     },
     {
       "id": "WK14",
@@ -564,5 +579,5 @@
       "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）。2026-11-04 shilian 侧会话校验已落地：wecom-sync 提供 GET /identity/me（IdTokenVerifier 支持 RS256/ES256/HS256，拒 alg=none 与算法混淆，校验 iss/aud/exp/nbf，失败不回显 token），web 身份改为向服务端索取、不再用构建期变量固化，未登录显式提示；wecom-sync 106 项 + web 44 项测试全绿。剩余（未完成，故不标 done）：① 53 现场对接真实 IdP 并置 DISABLE_REGISTRATION=true；② Lite 单二进制形态验证；③ Lite → K8s 迁移文档。deps 的 WK13 仍为 todo，本项 ①②③ 依赖其验收环境。"
     }
   ],
-  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。2026-11-04 WK13 推进为 doing：已通过 SSH 把本轮全部新代码部署到 53 并重建服务（INGEST_SINK/RETRIEVE_DRIVER 切 weknora），端到端主干现场验通——上传脱敏 DOCX→建库(绑 embedding)→docreader 解析→indexed、权限检索矩阵 5 项全对(越权均 total=0)、decide 路由、smoke.sh 退出 0；部署中修掉一个真实阻塞缺陷(入库/投影建库未绑向量模型，commit 61c6a1a)。两项受阻：问答真实出账卡在 53 上 DeepSeek 两把 key 均上游 401 失效、Qwen key 空（外部密钥，非代码问题）；清单成册闭环因 matcher/packager 未纳入测试 compose 且默认候选源为 Null 而未跑。"
+  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。2026-11-04 WK13 推进为 doing：已通过 SSH 把本轮全部新代码部署到 53 并重建服务（INGEST_SINK/RETRIEVE_DRIVER 切 weknora），端到端主干现场验通——上传脱敏 DOCX→建库(绑 embedding)→docreader 解析→indexed、权限检索矩阵 5 项全对(越权均 total=0)、decide 路由、smoke.sh 退出 0。部署中修掉三个真实缺陷：入库/投影建库未绑向量模型(61c6a1a)、响应正文顶层 text 契约与模型名解耦(ba0cc69)。运维补有效 DeepSeek key 后**问答真实出账已验通**，并用真实浏览器在工作台实测 UI 问答溯源(来源为本次上传的 wk13.docx)。**清单成册闭环已按要求拆出为独立排期任务 WK18**（CandidateProvider 的 HTTP 真实召回历史上从未实现，属新增工作量；deps 只列 T03，刻意不指 WK13 以免成环）。WK13 剩余：等 WK18 完成后回归成册段 + 补 RAGFlow 通道 backward compat 复跑。"
 }
