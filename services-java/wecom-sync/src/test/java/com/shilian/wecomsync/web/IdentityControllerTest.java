@@ -185,4 +185,49 @@ class IdentityControllerTest {
         org.assertj.core.api.Assertions.assertThat(props.corpId()).isEqualTo("ww-test");
         org.assertj.core.api.Assertions.assertThat(props.configured()).isTrue();
     }
+
+    // ---- /identity/me（过渡模式：oidc.enabled=false）----
+
+    @Test
+    void meReadsHeaderInjectedByGateway() throws Exception {
+        fullSync();
+        mvc.perform(get("/identity/me").header("X-User-Id", "zhangsan"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dept[0]").value("融资部"))
+                .andExpect(jsonPath("$.max_sensitivity").value("L2"));
+    }
+
+    /** 与 /principal/{id} 必须是同一份主体形状，前端才能复用类型。 */
+    @Test
+    void meMatchesPrincipalEndpointShape() throws Exception {
+        fullSync();
+        String me = mvc.perform(get("/identity/me").header("X-User-Id", "zhangsan"))
+                .andReturn().getResponse().getContentAsString();
+        String other = mvc.perform(get("/identity/principal/zhangsan"))
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(json.readTree(me))
+                .isEqualTo(json.readTree(other));
+    }
+
+    @Test
+    void meWithoutSessionIs401() throws Exception {
+        fullSync();
+        mvc.perform(get("/identity/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("unauthenticated"));
+        mvc.perform(get("/identity/me").header("X-User-Id", "   "))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** 401 的文案不得带出令牌或期望值，也不区分「用户不存在」，避免身份枚举。 */
+    @Test
+    void me401MessageDoesNotLeak() throws Exception {
+        fullSync();
+        mvc.perform(get("/identity/me").header("X-User-Id", "nobody"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("not_found"));
+        mvc.perform(get("/identity/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("会话无效或已过期，请重新登录"));
+    }
 }

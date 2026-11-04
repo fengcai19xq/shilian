@@ -3,6 +3,7 @@ package com.shilian.wecomsync.web;
 import com.shilian.wecomsync.identity.EmptySnapshotException;
 import com.shilian.wecomsync.identity.NotFoundException;
 import com.shilian.wecomsync.identity.PrincipalInactiveException;
+import com.shilian.wecomsync.identity.oidc.UnauthenticatedException;
 import com.shilian.wecomsync.web.Dtos.ErrorResponse;
 import com.shilian.wecomsync.wecom.WecomApiException;
 import org.slf4j.Logger;
@@ -43,6 +44,14 @@ public class ApiExceptionHandler {
     public ResponseEntity<ErrorResponse> wecom(WecomApiException e) {
         log.warn("wecom call failed: {}", e.getMessage());
         return error(HttpStatus.BAD_GATEWAY, "wecom_unavailable", "wecom api call failed, nothing was written");
+    }
+
+    /**
+     * 会话无效：只回固定文案。绝不记录也不回显令牌内容——那是可复用凭证。
+     */
+    @ExceptionHandler(UnauthenticatedException.class)
+    public ResponseEntity<ErrorResponse> unauthenticated(UnauthenticatedException e) {
+        return error(HttpStatus.UNAUTHORIZED, "unauthenticated", "会话无效或已过期，请重新登录");
     }
 
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {

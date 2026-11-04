@@ -5,6 +5,7 @@ import com.shilian.wecomsync.identity.Principal;
 import com.shilian.wecomsync.identity.SyncMode;
 import com.shilian.wecomsync.identity.SyncResult;
 import com.shilian.wecomsync.identity.SyncService;
+import com.shilian.wecomsync.identity.oidc.SessionResolver;
 import com.shilian.wecomsync.web.Dtos.AuditEventsResponse;
 import com.shilian.wecomsync.web.Dtos.GrantRequest;
 import com.shilian.wecomsync.web.Dtos.SyncRequest;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,12 +28,28 @@ public class IdentityController {
     private final SyncService syncService;
     private final IdentityService identityService;
     private final WeknoraProjectionService projectionService;
+    private final SessionResolver sessionResolver;
 
     public IdentityController(SyncService syncService, IdentityService identityService,
-            WeknoraProjectionService projectionService) {
+            WeknoraProjectionService projectionService, SessionResolver sessionResolver) {
         this.syncService = syncService;
         this.identityService = identityService;
         this.projectionService = projectionService;
+        this.sessionResolver = sessionResolver;
+    }
+
+    /**
+     * 当前登录者的主体（WK17 统一登录）。
+     *
+     * 与 /principal/{id} 的区别：路径参数版是管理面「查别人」，需要显式给出 userid；
+     * 本端点身份只来自会话 —— oidc.enabled=true 时取 Authorization 中 IdP 签发的 id_token
+     * 并验签，前端无法自报身份，也不再依赖构建期注入的调试身份。
+     */
+    @GetMapping("/me")
+    public Principal me(
+            @RequestHeader(name = "Authorization", required = false) String authorization,
+            @RequestHeader(name = "X-User-Id", required = false) String headerUserId) {
+        return identityService.principalOf(sessionResolver.resolveWecomUserId(authorization, headerUserId));
     }
 
     @PostMapping("/sync")

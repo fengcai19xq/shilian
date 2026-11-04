@@ -3,6 +3,8 @@ package com.shilian.wecomsync.config;
 import com.shilian.wecomsync.audit.AuditSink;
 import com.shilian.wecomsync.audit.InMemoryAuditSink;
 import com.shilian.wecomsync.identity.PrincipalResolver;
+import com.shilian.wecomsync.identity.oidc.IdTokenVerifier;
+import com.shilian.wecomsync.identity.oidc.OidcProperties;
 import com.shilian.wecomsync.store.DepartmentRepository;
 import com.shilian.wecomsync.store.GrantRepository;
 import com.shilian.wecomsync.store.InMemoryDepartmentRepository;
@@ -18,6 +20,7 @@ import com.shilian.wecomsync.weknora.WeknoraIdentityClient;
 import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -83,5 +86,16 @@ public class WecomSyncConfig {
         FakeWeknoraIdentityClient offline = new FakeWeknoraIdentityClient();
         offline.setAvailable(false);
         return offline;
+    }
+
+    /**
+     * id_token 验签器（WK17）。仅在 oidc.enabled=true 时装配：
+     * 开启但缺密钥属于配置错误，构造器会直接抛错让启动失败，
+     * 而不是悄悄降级成「信任请求头」。
+     */
+    @Bean
+    @ConditionalOnProperty(name = "oidc.enabled", havingValue = "true")
+    public IdTokenVerifier idTokenVerifier(OidcProperties props) {
+        return new IdTokenVerifier(props);
     }
 }
