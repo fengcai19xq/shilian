@@ -497,10 +497,10 @@
         "WK11",
         "WK12"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "脱敏 DOCX 上传→ingest→docreader 解析→WeKnora 入库→retrieval-proxy 权限检索→shilian web 问答溯源→清单成册闭环全链路通过；smoke.sh 或等价验收脚本在新底座跑通",
       "session": "",
-      "note": "对应原 T01 在新的底座形态下的等价验收；确保 backward compatibility——RAGFlow 底座链路同样可跑（由 WK08 双后端保证）"
+      "note": "对应原 T01 在新的底座形态下的等价验收；确保 backward compatibility——RAGFlow 底座链路同样可跑（由 WK08 双后端保证）。2026-11-04 部分完成（标 doing，未 done）：已用 SSH 部署本轮全部新代码到 53（ingest/retrieval-proxy 重建镜像、INGEST_SINK=weknora + RETRIEVE_DRIVER=weknora），现场验通主干链路——脱敏 DOCX 上传→自动建 sl-default-L2-* 库并绑 embedding→docreader 解析→indexed；权限检索矩阵 5 项全对（授权命中1、越权部门/越权项目/密级不足/无授权部门均 total=0），probe+full 双模式，decide 判 enterprise，smoke.sh 退出码 0，web SPA 资源 200。⚠ 部署中还修掉一个真实阻塞缺陷（见 commit 61c6a1a）：入库与投影建库都未绑向量模型，会让文档必然解析失败，已在 53 真链路复现并验证修复。⚠ 两项受阻、暂不 done：① shilian web 问答真实出账——53 上 DeepSeek 两把 key 经上游实测均 401 失效、Qwen key 空，gateway 请求已正确路由到 enterprise 通道并带对鉴权头打到上游，仅差一把有效厂商密钥（属外部配置，不由我擅自塞入部署）；② 清单成册闭环——matcher/packager 未纳入该测试 compose，且 matcher 默认 CandidateProvider 为 Null 实现，接真实召回需另写 HTTP provider。backward compat（RAGFlow 通道）本轮未切回复跑，待补。"
     },
     {
       "id": "WK14",
@@ -564,5 +564,5 @@
       "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）。2026-11-04 shilian 侧会话校验已落地：wecom-sync 提供 GET /identity/me（IdTokenVerifier 支持 RS256/ES256/HS256，拒 alg=none 与算法混淆，校验 iss/aud/exp/nbf，失败不回显 token），web 身份改为向服务端索取、不再用构建期变量固化，未登录显式提示；wecom-sync 106 项 + web 44 项测试全绿。剩余（未完成，故不标 done）：① 53 现场对接真实 IdP 并置 DISABLE_REGISTRATION=true；② Lite 单二进制形态验证；③ Lite → K8s 迁移文档。deps 的 WK13 仍为 todo，本项 ①②③ 依赖其验收环境。"
     }
   ],
-  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。"
+  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。2026-11-04 WK13 推进为 doing：已通过 SSH 把本轮全部新代码部署到 53 并重建服务（INGEST_SINK/RETRIEVE_DRIVER 切 weknora），端到端主干现场验通——上传脱敏 DOCX→建库(绑 embedding)→docreader 解析→indexed、权限检索矩阵 5 项全对(越权均 total=0)、decide 路由、smoke.sh 退出 0；部署中修掉一个真实阻塞缺陷(入库/投影建库未绑向量模型，commit 61c6a1a)。两项受阻：问答真实出账卡在 53 上 DeepSeek 两把 key 均上游 401 失效、Qwen key 空（外部密钥，非代码问题）；清单成册闭环因 matcher/packager 未纳入测试 compose 且默认候选源为 Null 而未跑。"
 }
