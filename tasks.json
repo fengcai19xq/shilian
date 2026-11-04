@@ -1,6 +1,6 @@
 {
   "project": "航锂智能体",
-  "updated_at": "2026-11-03",
+  "updated_at": "2026-11-04",
   "token_budget": {
     "monthly_cap_cny": 30000,
     "alert_at_pct": 80,
@@ -558,11 +558,11 @@
       "deps": [
         "WK13"
       ],
-      "status": "todo",
+      "status": "doing",
       "acceptance": "Lite 形态（DB_DRIVER=sqlite + sqlite-vec，无 Redis 时 Asynq 进程内执行）可独立运行；OIDC 对接企业 IdP 完成（DISABLE_REGISTRATION=true / invite_register）；Lite → 标准 K8s 数据迁移文档可用",
       "session": "",
-      "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）"
+      "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）。2026-11-04 shilian 侧会话校验已落地：wecom-sync 提供 GET /identity/me（IdTokenVerifier 支持 RS256/ES256/HS256，拒 alg=none 与算法混淆，校验 iss/aud/exp/nbf，失败不回显 token），web 身份改为向服务端索取、不再用构建期变量固化，未登录显式提示；wecom-sync 106 项 + web 44 项测试全绿。剩余（未完成，故不标 done）：① 53 现场对接真实 IdP 并置 DISABLE_REGISTRATION=true；② Lite 单二进制形态验证；③ Lite → K8s 迁移文档。deps 的 WK13 仍为 todo，本项 ①②③ 依赖其验收环境。"
     }
   ],
-  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0 全部完成；WK06-08 编码完成待提交。WK09 双底座跑分按需求移除。近期主线 = WK10(ingest 切 docreader) ∥ WK14(企微适配)，二者完成后推进 WK11(Dify 退役)→WK12(web 拆分)→WK13(端到端)。"
+  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。"
 }
