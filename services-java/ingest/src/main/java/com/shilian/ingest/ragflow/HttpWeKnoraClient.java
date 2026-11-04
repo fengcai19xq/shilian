@@ -43,23 +43,31 @@ public class HttpWeKnoraClient implements RagflowClient {
     private final String tenantId;
     private final long parseTimeoutSeconds;
     private final long parsePollSeconds;
+    private final String embeddingModel;
+    /** 模型名→id 只解析一次：KB 可能建很多次，模型列表基本不变。 */
+    private volatile String embeddingModelId;
 
     public HttpWeKnoraClient(String baseUrl, String apiKey, String tenantId,
-            long parseTimeoutSeconds, long parsePollSeconds) {
-        this(baseUrl, apiKey, tenantId, parseTimeoutSeconds, parsePollSeconds,
+            long parseTimeoutSeconds, long parsePollSeconds, String embeddingModel) {
+        this(baseUrl, apiKey, tenantId, parseTimeoutSeconds, parsePollSeconds, embeddingModel,
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
     }
 
     public HttpWeKnoraClient(String baseUrl, String apiKey, String tenantId,
-            long parseTimeoutSeconds, long parsePollSeconds, HttpClient http) {
+            long parseTimeoutSeconds, long parsePollSeconds, String embeddingModel, HttpClient http) {
         if (baseUrl == null || baseUrl.isBlank() || apiKey == null || apiKey.isBlank()) {
             throw new IllegalArgumentException("ingest.weknora.base-url / api-key 不能为空");
+        }
+        if (embeddingModel == null || embeddingModel.isBlank()) {
+            // 不绑向量模型建出来的 KB 必然解析失败，且要到解析阶段才报错——这里提前拦住
+            throw new IllegalArgumentException("ingest.weknora.embedding-model 不能为空");
         }
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.apiKey = apiKey;
         this.tenantId = tenantId == null ? "" : tenantId.strip();
         this.parseTimeoutSeconds = parseTimeoutSeconds <= 0 ? 600 : parseTimeoutSeconds;
         this.parsePollSeconds = parsePollSeconds <= 0 ? 5 : parsePollSeconds;
+        this.embeddingModel = embeddingModel == null ? "" : embeddingModel.strip();
         this.http = http;
     }
 
@@ -68,19 +76,71 @@ public class HttpWeKnoraClient implements RagflowClient {
         return true;
     }
 
-    /** 同名 KB 已存在时返回其 id（幂等）。 */
+    /**
+     * 同名 KB 已存在时返回其 id（幂等）。
+     *
+     * 建库必须绑定向量模型：WeKnora 不会自己挑，缺了就建成一个解析必然失败的 KB
+     * （parse=failed，`failed to get embedding model: model ID cannot be empty`）。
+     * 那种 KB 会让文档一路走到解析阶段才报错，所以这里改为建库前就快速失败。
+     */
     @Override
     public String createDataset(String name) {
+        String modelId = resolveEmbeddingModelId();
         JsonNode list = send(get(API + "/knowledge-bases"));
         for (JsonNode kb : items(list)) {
             if (name.equals(kb.path("name").asText())) {
+                requireBoundEmbedding(kb, modelId);
                 return kb.path("id").asText();
             }
         }
         ObjectNode body = mapper.createObjectNode().put("name", name);
         body.put("type", "user");
         body.put("description", "shilian 自动创建（密级×部门复合命名，勿手动改名）");
+        body.put("embedding_model_id", modelId);
         return requireId(send(json("POST", API + "/knowledge-bases", body)), "KB 创建未返回 id");
+    }
+
+    /**
+     * 复用已存在的 KB 前，确认它真的绑了向量模型。
+     *
+     * 早期版本（以及身份投影侧）建出来的 KB 可能没绑定，而这类库**无法事后补绑**：
+     * PUT 改不动 embedding_model_id，文档会一路走到解析阶段才报
+     * `model ID cannot be empty`，排查成本极高。所以这里直接拦在建库入口，
+     * 给出可操作的错误（删除该 KB 让流水线重建）。
+     */
+    private void requireBoundEmbedding(JsonNode kb, String modelId) {
+        String bound = kb.path("embedding_model_id").asText("");
+        if (!bound.isBlank()) {
+            return;
+        }
+        throw new RagflowException("已存在的知识库 " + kb.path("name").asText("")
+                + " 未绑定向量模型且无法补绑，请在 WeKnora 删除该 KB 后重试（将由本服务按配置重建）");
+    }
+
+    /** 模型名→id。只接受 active 的 Embedding 模型；解析不到就抛，绝不建空绑定的 KB。 */
+    private String resolveEmbeddingModelId() {
+        String cached = embeddingModelId;
+        if (cached != null) {
+            return cached;
+        }
+        JsonNode models = send(get(API + "/models"));
+        for (JsonNode m : items(models)) {
+            if (!"Embedding".equals(m.path("type").asText())) {
+                continue;
+            }
+            if (!"active".equals(m.path("status").asText("active"))) {
+                continue;
+            }
+            if (embeddingModel.equals(m.path("name").asText())) {
+                String id = m.path("id").asText("");
+                if (id.isBlank()) {
+                    throw new RagflowException("WeKnora 向量模型未返回 id");
+                }
+                embeddingModelId = id;
+                return id;
+            }
+        }
+        throw new RagflowException("WeKnora 空间内找不到可用的向量模型: " + embeddingModel);
     }
 
     /**

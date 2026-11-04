@@ -28,7 +28,7 @@ class WeknoraProjectionServiceTest {
 
     private static ProjectionProperties props(List<String> adminRoles, List<String> contributorRoles) {
         return new ProjectionProperties(true, "http://weknora.test", "k", "10001", "acme",
-                "identity.shilian.local", adminRoles, contributorRoles);
+                "identity.shilian.local", adminRoles, contributorRoles, "BAAI/bge-m3");
     }
 
     @BeforeEach
@@ -248,7 +248,7 @@ class WeknoraProjectionServiceTest {
 
     @Test
     void memberCallsRefusedUntilEndpointVerified() {
-        HttpWeknoraIdentityClient client = new HttpWeknoraIdentityClient("http://x", "k", "10001");
+        HttpWeknoraIdentityClient client = new HttpWeknoraIdentityClient("http://x", "k", "10001", "BAAI/bge-m3");
         assertThat(client.available()).isTrue();
         assertThatThrownBy(() -> client.findMember("wx_a")).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> client.upsertMember("wx_a", "e", "n", "viewer"))
@@ -257,19 +257,27 @@ class WeknoraProjectionServiceTest {
 
     @Test
     void blankCredentialsRejected() {
-        assertThatThrownBy(() -> new HttpWeknoraIdentityClient("", "k", "1"))
+        assertThatThrownBy(() -> new HttpWeknoraIdentityClient("", "k", "1", "m"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new HttpWeknoraIdentityClient("http://x", null, "1"))
+        assertThatThrownBy(() -> new HttpWeknoraIdentityClient("http://x", null, "1", "m"))
                 .isInstanceOf(IllegalArgumentException.class);
+        // 向量模型缺失会让建出来的 KB 无法解析，构造期就拦住
+        assertThatThrownBy(() -> new HttpWeknoraIdentityClient("http://x", "k", "1", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("embedding-model");
+        assertThatThrownBy(() -> new HttpWeknoraIdentityClient("http://x", "k", "1", " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("embedding-model");
     }
 
     @Test
     void propertiesGuardActiveFlag() {
-        assertThat(new ProjectionProperties(false, "http://x", "k", "1", "t", "d", List.of(), List.of()).active())
+        assertThat(new ProjectionProperties(false, "http://x", "k", "1", "t", "d", List.of(), List.of(), "m").active())
                 .isFalse();
-        assertThat(new ProjectionProperties(true, "http://x", "k", "1", "t", "d", List.of(), List.of()).active())
+        assertThat(new ProjectionProperties(true, "http://x", "k", "1", "t", "d", List.of(), List.of(), "m").active())
                 .isTrue();
-        assertThat(new ProjectionProperties(true, "", "k", "1", "t", "d", List.of(), List.of()).active()).isFalse();
+        assertThat(new ProjectionProperties(true, "", "k", "1", "t", "d", List.of(), List.of(), "m").active())
+                .isFalse();
     }
 
     @Test

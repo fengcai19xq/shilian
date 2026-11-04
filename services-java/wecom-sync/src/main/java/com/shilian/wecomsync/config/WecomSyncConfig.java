@@ -76,12 +76,15 @@ public class WecomSyncConfig {
     /**
      * WeKnora 身份客户端（WK14）：weknora.enabled 且凭据齐备时走真实 HTTP，
      * 否则退回内存实现并置为不可用——此时投影只出计划、不触碰后端。
+     * enabled=true 但 embedding-model 未配置属于配置错误：建出的 KB 无法解析，
+     * 构造器会当场抛错让启动失败，而不是悄悄建出坏库。
      */
     @Bean
     @ConditionalOnMissingBean(WeknoraIdentityClient.class)
     public WeknoraIdentityClient weknoraIdentityClient(ProjectionProperties props) {
         if (props.active()) {
-            return new HttpWeknoraIdentityClient(props.baseUrl(), props.apiKey(), props.tenantId());
+            return new HttpWeknoraIdentityClient(props.baseUrl(), props.apiKey(), props.tenantId(),
+                    props.embeddingModel());
         }
         FakeWeknoraIdentityClient offline = new FakeWeknoraIdentityClient();
         offline.setAvailable(false);

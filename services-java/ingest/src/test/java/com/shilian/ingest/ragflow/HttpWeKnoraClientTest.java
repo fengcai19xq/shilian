@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Test;
 class HttpWeKnoraClientTest {
 
     private static final String KB = "sl-acme-L2-878d8d4490e8";
+    private static final String MODEL_NAME = "BAAI/bge-m3";
+    private static final String MODEL_ID = "emb-1";
 
     private HttpServer server;
     private final List<String> calls = new ArrayList<>();
@@ -31,6 +33,10 @@ class HttpWeKnoraClientTest {
     /** 由用例改写：knowledge 列表返回的状态。 */
     private volatile String parseStatus = "completed";
     private volatile String serverErrorMessage = "";
+    /** 由用例改写：向量模型的 status，用于验证只认 active。 */
+    private volatile String embeddingStatus = "active";
+    /** 由用例改写：已存在的 KB 是否绑定了向量模型。 */
+    private volatile boolean existingKbBound = true;
 
     private HttpWeKnoraClient client;
 
@@ -46,8 +52,13 @@ class HttpWeKnoraClientTest {
 
             String resp;
             int status = 200;
-            if (key.equals("GET /api/v1/knowledge-bases")) {
-                resp = "{\"success\":true,\"data\":[{\"id\":\"kb-other\",\"name\":\"别的库\"}]}";
+            if (key.equals("GET /api/v1/models")) {
+                resp = "{\"success\":true,\"data\":[{\"id\":\"" + MODEL_ID + "\",\"name\":\"" + MODEL_NAME
+                        + "\",\"type\":\"Embedding\",\"status\":\"" + embeddingStatus + "\"},"
+                        + "{\"id\":\"qa-1\",\"name\":\"qwen-plus\",\"type\":\"KnowledgeQA\",\"status\":\"active\"}]}";
+            } else if (key.equals("GET /api/v1/knowledge-bases")) {
+                resp = "{\"success\":true,\"data\":[{\"id\":\"kb-other\",\"name\":\"别的库\",\"embedding_model_id\":\""
+                        + (existingKbBound ? MODEL_ID : "") + "\"}]}";
             } else if (key.equals("POST /api/v1/knowledge-bases")) {
                 resp = "{\"success\":true,\"data\":{\"id\":\"kb-1\",\"name\":\"" + KB + "\"}}";
             } else if (key.equals("GET /api/v1/knowledge-bases/kb-1/tags")) {
@@ -80,8 +91,12 @@ class HttpWeKnoraClientTest {
     }
 
     private HttpWeKnoraClient newClient(long timeoutSec, long pollSec) {
+        return newClient(timeoutSec, pollSec, MODEL_NAME);
+    }
+
+    private HttpWeKnoraClient newClient(long timeoutSec, long pollSec, String embeddingModel) {
         return new HttpWeKnoraClient("http://127.0.0.1:" + server.getAddress().getPort() + "/",
-                "test-key", "9001", timeoutSec, pollSec);
+                "test-key", "9001", timeoutSec, pollSec, embeddingModel);
     }
 
     @AfterEach
@@ -103,13 +118,78 @@ class HttpWeKnoraClientTest {
     @Test
     void createDatasetIsIdempotent() {
         assertThat(client.createDataset("不存在的库")).isEqualTo("kb-1");
-        assertThat(calls).containsExactly("GET /api/v1/knowledge-bases", "POST /api/v1/knowledge-bases");
+        assertThat(calls).containsExactly(
+                "GET /api/v1/models", "GET /api/v1/knowledge-bases", "POST /api/v1/knowledge-bases");
 
         calls.clear();
         // 第二次命中已存在名称：直接复用 id，不再创建
         HttpWeKnoraClient c2 = newClient(2, 1);
         assertThat(c2.createDataset("别的库")).isEqualTo("kb-other");
-        assertThat(calls).containsExactly("GET /api/v1/knowledge-bases");
+        assertThat(calls).containsExactly("GET /api/v1/models", "GET /api/v1/knowledge-bases");
+    }
+
+    /** 建出的 KB 必须绑定向量模型：不绑定的 KB 文档解析必然失败（现场实测 parse=failed）。 */
+    @Test
+    void createDatasetBindsResolvedEmbeddingModelId() throws IOException {
+        client.createDataset(KB);
+        JsonNode body = mapper.readTree(bodies.get(bodies.size() - 1));
+        assertThat(body.path("embedding_model_id").asText()).isEqualTo(MODEL_ID);
+        assertThat(body.path("name").asText()).isEqualTo(KB);
+    }
+
+    /** 模型名→id 只解析一次，避免每次建库都拉一遍模型列表。 */
+    @Test
+    void embeddingModelResolvedOnceAndCached() {
+        client.createDataset("库一");
+        client.createDataset("库二");
+        long modelCalls = calls.stream().filter(c -> c.equals("GET /api/v1/models")).count();
+        assertThat(modelCalls).isEqualTo(1);
+    }
+
+    /**
+     * 早期版本或投影侧建出的 KB 可能没绑模型且无法补绑；复用时必须提前拦住，
+     * 不能让文档一路走到解析阶段才报 `model ID cannot be empty`。
+     */
+    @Test
+    void reusingUnboundKbFailsFastWithActionableMessage() {
+        existingKbBound = false;
+        assertThatThrownBy(() -> client.createDataset("别的库"))
+                .isInstanceOf(RagflowException.class)
+                .hasMessageContaining("未绑定向量模型")
+                .hasMessageContaining("删除");
+        // 拦在复用判断处，不应再发建库请求
+        assertThat(calls).doesNotContain("POST /api/v1/knowledge-bases");
+    }
+
+    @Test
+    void embeddingModelMustBeConfiguredAtConstruction() {
+        assertThatThrownBy(() -> new HttpWeKnoraClient("http://x", "k", "1", 0, 0, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("embedding-model");
+        assertThatThrownBy(() -> new HttpWeKnoraClient("http://x", "k", "1", 0, 0, "  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("embedding-model");
+    }
+
+    /** 名称对不上不能默默建成空绑定 KB，要当场报错。 */
+    @Test
+    void unknownEmbeddingModelNameFailsFast() {
+        HttpWeKnoraClient c = newClient(2, 1, "BAAI/not-installed");
+        assertThatThrownBy(() -> c.createDataset(KB))
+                .isInstanceOf(RagflowException.class)
+                .hasMessageContaining("找不到可用的向量模型")
+                .hasMessageContaining("BAAI/not-installed");
+        // 失败前不应已经发出建库请求
+        assertThat(calls).doesNotContain("POST /api/v1/knowledge-bases");
+    }
+
+    /** 非 active 的模型不可用（上游可能留着禁用状态的记录）。 */
+    @Test
+    void inactiveEmbeddingModelIsRejected() {
+        embeddingStatus = "disabled";
+        assertThatThrownBy(() -> client.createDataset(KB))
+                .isInstanceOf(RagflowException.class)
+                .hasMessageContaining("找不到可用的向量模型");
     }
 
     @Test
@@ -184,9 +264,9 @@ class HttpWeKnoraClientTest {
 
     @Test
     void blankConfigRejected() {
-        assertThatThrownBy(() -> new HttpWeKnoraClient("", "k", "1", 0, 0))
+        assertThatThrownBy(() -> new HttpWeKnoraClient("", "k", "1", 0, 0, "m"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new HttpWeKnoraClient("http://x", "", "1", 0, 0))
+        assertThatThrownBy(() -> new HttpWeKnoraClient("http://x", "", "1", 0, 0, "m"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

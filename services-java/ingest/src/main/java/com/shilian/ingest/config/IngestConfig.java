@@ -40,7 +40,8 @@ public class IngestConfig {
                 return new FakeRagflowClient();
             }
             return new HttpWeKnoraClient(baseUrl, props.weknora().apiKey(), props.weknora().tenantId(),
-                    props.weknora().parseTimeoutSeconds(), props.weknora().parsePollSeconds());
+                    props.weknora().parseTimeoutSeconds(), props.weknora().parsePollSeconds(),
+                    props.weknora().embeddingModel());
         }
         String baseUrl = props.ragflow().baseUrl();
         if (baseUrl == null || baseUrl.isBlank()) {

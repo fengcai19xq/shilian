@@ -24,12 +24,20 @@ public record IngestProperties(
             String apiKey,
             String tenantId,
             @DefaultValue("600") long parseTimeoutSeconds,
-            @DefaultValue("5") long parsePollSeconds) {
+            @DefaultValue("5") long parsePollSeconds,
+            /**
+             * 建库时要绑定的向量模型名（WeKnora 的 model name）。
+             * 缺失会让 WeKnora 建出无法解析的 KB（parse=failed：
+             * `failed to get embedding model: model ID cannot be empty`，2026-11-04 现场实测），
+             * 因此 sink=weknora 时视为必填。
+             */
+            String embeddingModel) {
 
         @Override
         public String toString() {
             return "WeKnora[baseUrl=" + baseUrl + ", apiKey=" + (apiKey == null || apiKey.isEmpty() ? "" : "***")
-                    + ", tenantId=" + tenantId + ", parseTimeoutSeconds=" + parseTimeoutSeconds + "]";
+                    + ", tenantId=" + tenantId + ", parseTimeoutSeconds=" + parseTimeoutSeconds
+                    + ", embeddingModel=" + embeddingModel + "]";
         }
     }
 

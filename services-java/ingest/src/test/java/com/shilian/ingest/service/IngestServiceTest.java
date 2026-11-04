@@ -36,7 +36,7 @@ class IngestServiceTest {
     private final IngestProperties props = new IngestProperties(new IngestProperties.Chunk(200, 20), true,
             "ragflow",
             new IngestProperties.Ragflow(null, null, "kb_default", Map.of("财务共享", "kb_finance")),
-            new IngestProperties.WeKnora(null, null, null, 600, 5));
+            new IngestProperties.WeKnora(null, null, null, 600, 5, null));
     private final IngestService service = new IngestService(repo, audit, ragflow, new DocumentParser(),
             new Chunker(200, 20), props, pending::add,
             Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC));
@@ -130,7 +130,7 @@ class IngestServiceTest {
     private IngestService weknoraService(FakeWeKnoraClient backend, String sink) {
         IngestProperties weknoraProps = new IngestProperties(new IngestProperties.Chunk(200, 20), true, sink,
                 new IngestProperties.Ragflow(null, null, "kb_default", Map.of("财务共享", "kb_finance")),
-                new IngestProperties.WeKnora("http://weknora.test", "k", "9001", 60, 1));
+                new IngestProperties.WeKnora("http://weknora.test", "k", "9001", 60, 1, "BAAI/bge-m3"));
         return new IngestService(repo, audit, backend, new DocumentParser(), new Chunker(200, 20), weknoraProps,
                 pending::add, Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC));
     }

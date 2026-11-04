@@ -19,7 +19,13 @@ public record ProjectionProperties(
         @DefaultValue("default") String tenant,
         @DefaultValue("identity.shilian.local") String emailDomain,
         @DefaultValue({ "financing_manager", "it_admin" }) List<String> adminRoles,
-        @DefaultValue({ "financing_staff" }) List<String> contributorRoles) {
+        @DefaultValue({ "financing_staff" }) List<String> contributorRoles,
+        /**
+         * 预置 KB 要绑定的向量模型名，必须与 ingest.weknora.embedding-model 一致。
+         * 两边不一致会各自建出不同绑定的库；投影建出的库若没绑模型，
+         * 后续 ingest 会拒绝复用（未绑定的 KB 无法补绑，文档必然解析失败）。
+         */
+        String embeddingModel) {
 
     /** 只有开关打开且地址与密钥齐备才真正下发。 */
     public boolean active() {
@@ -31,6 +37,7 @@ public record ProjectionProperties(
     public String toString() {
         return "ProjectionProperties[enabled=" + enabled + ", baseUrl=" + baseUrl
                 + ", apiKey=" + (apiKey == null || apiKey.isBlank() ? "<unset>" : "******")
-                + ", tenantId=" + tenantId + ", tenant=" + tenant + "]";
+                + ", tenantId=" + tenantId + ", tenant=" + tenant
+                + ", embeddingModel=" + embeddingModel + "]";
     }
 }
