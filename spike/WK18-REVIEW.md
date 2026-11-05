@@ -42,7 +42,8 @@
 
 - 五个硬约束属性以 **ingest 登记为唯一权威来源**；matcher 按 `doc_id` 回查 `GET /ingest/documents/{doc_id}` 富化；查不到 → 该候选属性全缺、判不通过（宁缺勿错）。
 - retrieval hits 的同名可选字段**仅作展示**，matcher 不得作为判定依据。
-- 匹配主体的四元组由**调用方按会话态注入**（与 `retrieval.md`「由网关注入、不由前端传入」同源）：`POST /checklists/{id}/run` 请求体带 principal，matcher 原样透传给 retrieval-proxy，**不做任何 id→principal 解析、不调身份服务**。`X-User-Id` 仅作审计 actor。
+- 匹配主体的四元组由**服务端按登录会话注入**（Q6 已裁定：run 不直接暴露给浏览器）：BFF/网关从 session 取会话用户 ID → 向 wecom-sync 换四元组 → 注入 `POST /checklists/{id}/run` 请求体；matcher 原样透传给 retrieval-proxy，**自身不做任何 id→principal 解析、不调身份服务**。`X-User-Id` 仅作审计 actor。
+- ⚠ 实现时别混淆：**session 给身份、不给权限**。四元组只在 wecom-sync 授权表里，那次「换取」查询不可省；但它是查权限、不是 id 转换（`Principal.user_id` 与 session 的会话用户 ID 同源）。
 - principal 缺失或 dept 为空 → 任务 FAILED，`{"detail":"缺少会话权限主体"}`，**不回退匿名、不按默认密级**。
 - 异步执行期间 principal 随任务在内存传递，**不得写入 `MatchTask` 序列化字段**（`GET /tasks/{id}` 直接返回它，写进去会把权限四元组回显给调用方）。
 - `kb_scope` 来自配置 `MATCHER_KB_SCOPE`；未配置视为无权，召回返回空。
@@ -57,7 +58,15 @@
 
 | # | 结论 |
 | --- | --- |
-| ~~Q2~~ | **标识口径已裁定**：前端会话用户 ID 与企微 userid 是两个独立入口的用户标识，**互不相同、不做转换**。因此 matcher **不得**用 `X-User-Id` 调 `/identity/principal/{wecomUserId}`（会解析到错误的人）。改为：四元组由调用方按会话态注入，matcher 不做任何 id 解析（见 C2）。提案初稿的错误路径已移除。 |
+| ~~Q2~~ | **标识口径已裁定**：前端会话用户 ID 与企微 userid 是两个独立入口的用户标识，**互不相同、不做转换**。因此 matcher **不得**用 `X-User-Id` 调 `/identity/principal/{wecomUserId}`（会解析到错误的人）。提案初稿的错误路径已移除。 |
+| ~~Q6~~ | **run 端点暴露面已裁定**（2026-11-05）：不直接暴露给浏览器，主体身份取自登录用户 session。链路定为：**BFF/网关**从 session 取会话用户 ID → 换取四元组 → 注入 run 请求体；matcher 只信服务端注入的 principal，不接受浏览器直连。 |
+
+> 关键区分（避免把两件事混成一件）：**session 给的是「身份」，不是「权限」**。
+> `dept / roles / max_sensitivity / projects` 只存在于 wecom-sync 授权表（`Grant`），
+> session 里没有。所以 BFF 仍须用该 id 向 wecom-sync 换一次四元组——这一步是**查权限**，
+> 不是 id 转换，不能省、也不能由 matcher 自行兜默认密级。
+> 代码依据：`PrincipalResolver.resolve()` 返回的 `Principal.user_id` 即 `user.principalId()`
+> （形如 `u_xxx`），与 session 里的会话用户 ID 同源，故无需任何 id 映射。
 
 ### 待拍板
 
@@ -67,7 +76,6 @@
 | Q3 | **`GET /ingest/documents` 鉴权**：F4 已核实当前裸露可枚举。契约是否补「生产必须置于网关鉴权后」 | 补，措辞对齐 `matching.md` 红线 2 | 属既有暴露面，修法超出 WK18 范围，需数智化中心定排期 |
 | Q4 | **登记内存态**：`InMemoryDocumentRepository` 重启丢数据 → 富化查不到会全落 missing。测试环境可接受，生产须换 DB | 挂到 T16 治理项排期 | 跨任务排期决策 |
 | Q5 | **C3 改语义是否可接受**：有无已上线消费方依赖 hits 那四个字段做判定？ | 若无则接受 | 需后端A/后端C 确认消费方现状 |
-| Q6 | **run 端点暴露面**（Q2 裁定后新增）：principal 改由请求体注入后，`POST /checklists/{id}/run` 若直接暴露给浏览器，等于把权限判定交给客户端。生产是否强制经网关/BFF 注入、matcher 不接受浏览器直连？ | 强制经网关；契约写明生产形态，测试环境可直连 | 属暴露面决策，需数智化中心 + 后端A 确认 |
 
 ## 4. 签字后实现切分（含验收口径）
 
@@ -81,18 +89,18 @@
 
 ## 5. 评审时建议的核对顺序
 
-1. 先看 **Q6**（安全，阻塞性最高）——principal 改由请求体注入后，run 端点的暴露面决定权限判定会不会落到客户端手里。
-2. 再看 **C3 + Q5**——唯一改语义的变更，牵动已上线消费方。
-3. 然后 **Q1**（std_type 来源）——决定 T02 是否成为 WK18 的前置依赖。
-4. Q3/Q4 属既有欠账，可当场定排期归属，不阻塞签字。
+1. 先看 **C3 + Q5**——唯一改语义的变更，牵动已上线消费方。
+2. 然后 **Q1**（std_type 来源）——决定 T02 是否成为 WK18 的前置依赖。
+3. Q3/Q4 属既有欠账，可当场定排期归属，不阻塞签字。
 
-> Q2 已于 2026-11-05 裁定，不再是待拍板项；其结论已并入 C2 与提案 §3.2。
+> Q2、Q6 已于 2026-11-05 裁定（标识不做转换；run 主体取自 session 经 BFF 注入），
+> 不再是待拍板项；结论已并入 C2 与提案 §3.2。
 
 ## 6. 签字栏
 
 | 角色 | 关注点 | 结论 | 签名 | 日期 |
 | --- | --- | --- | --- | --- |
-| 数智化中心 | Q6 run 端点暴露面、Q3 鉴权、Q4 排期归属 | ☐ 通过　☐ 修改意见 | | |
+| 数智化中心 | BFF/网关侧 session→四元组注入由谁实现（Q6 已裁定方向）、Q3 鉴权、Q4 排期归属 | ☐ 通过　☐ 修改意见 | | |
 | 后端A（ingest-java / retrieval-proxy） | C1 字段、C2 主体注入、C3 语义澄清、Q5 消费方 | ☐ 通过　☐ 修改意见 | | |
 | 后端C（web 上传表单加三字段） | C1 对前端表单的影响 | ☐ 通过　☐ 修改意见 | | |
 

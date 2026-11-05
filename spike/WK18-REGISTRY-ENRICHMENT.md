@@ -60,14 +60,15 @@
   GET /ingest/documents/{doc_id} 富化；登记查不到该 doc_id → 该候选属性全缺、
   判不通过（宁缺勿错）。retrieval hits 的同名可选字段仅作展示用途，
   matcher 不得作为判定依据。
-- 匹配主体的四元组由**调用方按会话态注入**（与 retrieval.md「由网关注入、不由前端传入」
-  同源）：POST /checklists/{id}/run 的请求体带 principal（user_id/dept/roles/
-  max_sensitivity/projects[/tenant]），matcher 原样透传给 retrieval-proxy（红线 1）。
-  matcher **不做任何 id→principal 解析**，也不调用身份服务。
+- 匹配主体的四元组由**服务端按登录会话注入**（2026-11-05 裁定：run 端点不直接暴露给
+  浏览器）：BFF/网关从登录 session 取会话用户 ID → 向 wecom-sync 换取四元组 →
+  注入 `POST /checklists/{id}/run` 请求体；matcher 原样透传给 retrieval-proxy（红线 1），
+  **自身不做任何 id→principal 解析**。
+  注意区分：**session 提供的是身份，不是权限**——`dept/roles/max_sensitivity/projects`
+  只在 wecom-sync 授权表（Grant）里，session 没有，故那次换取查询不可省略。
+  代码依据：`PrincipalResolver.resolve()` 的 `Principal.user_id` 即 `user.principalId()`
+  （形如 `u_xxx`），与 session 里的会话用户 ID 同源，**无需 id 转换**。
   请求头 X-User-Id 只作审计 actor（对齐 matching.md 既有条款），不参与权限判定。
-- 标识口径（2026-11-05 裁定）：前端会话用户 ID 与企微 userid 是两个独立入口的
-  用户标识，**互不相同、不做转换**。因此严禁用 X-User-Id 去调
-  /identity/principal/{wecomUserId}——两者命名空间不同，会解析到错误的人。
 - principal 缺失或 dept 为空 → 任务 FAILED，错误体 {"detail":"缺少会话权限主体"}；
   **不回退匿名、不按默认密级**（宁缺勿错，避免静默越权或静默丢料）。
 - run 是异步的（立即返回 task_id、后台执行），principal 须在受理时捕获并随任务
@@ -109,11 +110,10 @@
   测试环境可接受；生产前须换 DB 实现（建议挂到 T16 治理项一并排期，本草案不展开）。
 - **越权面**：`GET /ingest/documents` 目前无鉴权可枚举——富化调用在容器内网走，
   但契约应注明该接口生产必须置于网关鉴权后（与 matching.md 红线2同措辞）。签字时一并确认。
-- **谁注入 principal（新增，由 §3.2 改动带出）**：gateway.md 既有纪律是
-  「principal 不由浏览器构造，生产由网关/BFF 按会话态注入」。因此 run 请求在生产
-  必须经网关/BFF 注入四元组，前端只带会话凭证。若 matcher 直接暴露给浏览器且信任
-  请求体里的 principal，等于把权限判定交给客户端——**签字时须确认 run 端点的暴露面**。
-  过渡期（测试环境直连）可接受，但契约要写明生产形态。
+- **谁注入 principal（2026-11-05 已裁定方向）**：run 端点不直接暴露给浏览器，主体身份取自
+  登录 session——由 BFF/网关完成「session → 向 wecom-sync 换四元组 → 注入 run 请求体」。
+  matcher 只信服务端注入的 principal，不接受浏览器直连传入的权限字段。
+  待确认仅剩实现归属：该注入逻辑落在现有 web 网关还是新建 BFF（不影响本契约条文）。
 - provider 已按「std_type 缺失＝UNKNOWN 判不通过」实现（commit 5d76a00），
   与 §3.4 方案甲衔接后无需改判定逻辑。
 
