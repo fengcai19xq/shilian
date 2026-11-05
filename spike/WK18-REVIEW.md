@@ -23,11 +23,14 @@
 | F5 | `Checklist` record 不含 operator 字段 | `Checklist(String checklistId, String title, List<ChecklistItem> items)` |
 | F6 | 上传人 `X-User-Id` 只写进审计事件，未随清单持久化 | `MatcherService.save()` → `store.addAudit(..., operator, ...)`；`AuditEvent` 持有 operator |
 | F7 | 类型词典现有 **20 类** | `services-java/matcher/src/main/resources/data/types.yaml`（64 行，20 个 `std_name`） |
-| F8 | 提案引用的两个端点均真实存在 | `IngestController:51` `GET /ingest/documents/{docId}`；`IdentityController:73` `GET /identity/principal/{wecomUserId}` |
+| F8 | 富化所需端点真实存在 | `IngestController:51` `GET /ingest/documents/{docId}` |
 | F9 | HTTP 召回 provider 已落地并全绿 | commit `5d76a00`，matcher 54 项测试通过 |
+| F10 | 内部身份 ID 形如 `u_0/u_1`，与企微 userid 不同源 | `InMemoryUserRepository.allocatePrincipalId()` 返回 `"u_" + seq`；`PrincipalResolver` 用 `user.principalId()` 作 `Principal.user_id` |
+| F11 | `run` 是异步端点：立即返回 task_id、后台执行 | `MatcherController` `POST /checklists/{id}/run` → `executor.execute(() -> service.runTask(...))` |
 
 > F7 更正说明：提案初稿写「80~120 类型」有误，已修正为 20 类。
-> F5/F6 更正说明：提案初稿写「上传人随清单持久化」（误当成已有能力），已修正为**本提案新增项**。
+> F5/F6 更正说明：提案初稿写「上传人随清单持久化」（误当成已有能力），已修正为本提案新增项；后因主体机制改由会话侧注入，该项已不再需要（见 §3 Q2 裁定）。
+> F8/F10 更正说明：提案初稿让 matcher 用 `X-User-Id` 调 `/identity/principal/{wecomUserId}` 解析主体——经裁定该路径**不成立**（两类标识不同源，F10 亦印证），已从提案移除。
 
 ## 2. 三处契约变更（按评审关注点排序）
 
@@ -39,46 +42,58 @@
 
 - 五个硬约束属性以 **ingest 登记为唯一权威来源**；matcher 按 `doc_id` 回查 `GET /ingest/documents/{doc_id}` 富化；查不到 → 该候选属性全缺、判不通过（宁缺勿错）。
 - retrieval hits 的同名可选字段**仅作展示**，matcher 不得作为判定依据。
-- 匹配主体 = 清单上传人；解析失败 → 任务 FAILED，`{"detail":"身份解析失败"}`，**不回退匿名、不按默认密级**。
+- 匹配主体的四元组由**调用方按会话态注入**（与 `retrieval.md`「由网关注入、不由前端传入」同源）：`POST /checklists/{id}/run` 请求体带 principal，matcher 原样透传给 retrieval-proxy，**不做任何 id→principal 解析、不调身份服务**。`X-User-Id` 仅作审计 actor。
+- principal 缺失或 dept 为空 → 任务 FAILED，`{"detail":"缺少会话权限主体"}`，**不回退匿名、不按默认密级**。
+- 异步执行期间 principal 随任务在内存传递，**不得写入 `MatchTask` 序列化字段**（`GET /tasks/{id}` 直接返回它，写进去会把权限四元组回显给调用方）。
 - `kb_scope` 来自配置 `MATCHER_KB_SCOPE`；未配置视为无权，召回返回空。
 
 ### C3 `contracts/retrieval.md` —— 语义澄清（**这是改语义，风险最高，请重点看**）
 
 给 2026-10 补充的 hits 可选字段追加限定：属 best-effort 展示用途，需硬约束判定能力的消费方必须以 ingest 登记为准。
 
-## 3. 需评审拍板的 5 个开放问题
+## 3. 已裁定项与待拍板问题
+
+### 已裁定（2026-11-05）
+
+| # | 结论 |
+| --- | --- |
+| ~~Q2~~ | **标识口径已裁定**：前端会话用户 ID 与企微 userid 是两个独立入口的用户标识，**互不相同、不做转换**。因此 matcher **不得**用 `X-User-Id` 调 `/identity/principal/{wecomUserId}`（会解析到错误的人）。改为：四元组由调用方按会话态注入，matcher 不做任何 id 解析（见 C2）。提案初稿的错误路径已移除。 |
+
+### 待拍板
 
 | # | 问题 | 起草方倾向 | 为何不能自决 |
 | --- | --- | --- | --- |
 | Q1 | **`std_type` 来源**：上传时人工传（方案甲）／文件名对词典自动归一（方案乙，20 类）／两者并存 | 甲先行，乙作兜底 | 涉及业务建档流程，且 T02 词典扩充未完成 |
-| Q2 | **标识口径同源**：`X-User-Id`（前端语境为「会话用户 ID」，测试形如 `u_1`）与 `/identity/principal/{wecomUserId}`（企微 userid）是否同一命名空间？ | 待后端A + 数智化中心确认 | **安全项**：若不同源，matcher 会拿内部 id 当企微 id 解析，可能得到错误或空主体 → 越权风险。代码无法自证 |
 | Q3 | **`GET /ingest/documents` 鉴权**：F4 已核实当前裸露可枚举。契约是否补「生产必须置于网关鉴权后」 | 补，措辞对齐 `matching.md` 红线 2 | 属既有暴露面，修法超出 WK18 范围，需数智化中心定排期 |
 | Q4 | **登记内存态**：`InMemoryDocumentRepository` 重启丢数据 → 富化查不到会全落 missing。测试环境可接受，生产须换 DB | 挂到 T16 治理项排期 | 跨任务排期决策 |
 | Q5 | **C3 改语义是否可接受**：有无已上线消费方依赖 hits 那四个字段做判定？ | 若无则接受 | 需后端A/后端C 确认消费方现状 |
+| Q6 | **run 端点暴露面**（Q2 裁定后新增）：principal 改由请求体注入后，`POST /checklists/{id}/run` 若直接暴露给浏览器，等于把权限判定交给客户端。生产是否强制经网关/BFF 注入、matcher 不接受浏览器直连？ | 强制经网关；契约写明生产形态，测试环境可直连 | 属暴露面决策，需数智化中心 + 后端A 确认 |
 
 ## 4. 签字后实现切分（含验收口径）
 
 | 步 | 模块 | 内容 | 验收 |
 | --- | --- | --- | --- |
 | 1 | ingest-java | 采集 + 登记 + 返回三字段；不推引擎 | 新增用例：缺省 null／非法值 400 |
-| 2 | matcher | `Checklist` 增 operator 并持久化；`IngestRegistryClient`（按 doc_id 富化、带缓存）；runTask 解析 principal 传入 `recall(item, principal)`；provider 接线装配 | 富化失败→missing；principal 解析失败→任务 FAILED |
+| 2 | matcher | run 请求体接收 principal 并随任务内存传递（不写入 `MatchTask` 序列化字段）；`IngestRegistryClient`（按 doc_id 富化、带缓存）；runTask 把 principal 传入 `recall(item, principal)`；provider 接线装配；`X-User-Id` 仅作审计 actor | 富化失败→missing；principal 缺失／dept 空→任务 FAILED |
 | 3 | retrieval-proxy | 仅文档澄清，**代码不动** | — |
 | 4 | 部署 | matcher/packager 纳入 `deploy/test` compose + nginx 规则 | 53 冒烟：清单→匹配→manifest→packager 产物 |
 | 5 | 回归 | 假阳性率验证依赖 T03 黄金评测集；未就绪先用脱敏样例清单验链路 | 链路通／指标待 T03 |
 
 ## 5. 评审时建议的核对顺序
 
-1. 先看 **Q2**（安全，阻塞性最高）——它决定 matcher 能否安全解析主体，若不同源则 C2 需改写。
+1. 先看 **Q6**（安全，阻塞性最高）——principal 改由请求体注入后，run 端点的暴露面决定权限判定会不会落到客户端手里。
 2. 再看 **C3 + Q5**——唯一改语义的变更，牵动已上线消费方。
 3. 然后 **Q1**（std_type 来源）——决定 T02 是否成为 WK18 的前置依赖。
 4. Q3/Q4 属既有欠账，可当场定排期归属，不阻塞签字。
+
+> Q2 已于 2026-11-05 裁定，不再是待拍板项；其结论已并入 C2 与提案 §3.2。
 
 ## 6. 签字栏
 
 | 角色 | 关注点 | 结论 | 签名 | 日期 |
 | --- | --- | --- | --- | --- |
-| 数智化中心 | Q2 标识口径、Q3 鉴权、Q4 排期归属 | ☐ 通过　☐ 修改意见 | | |
-| 后端A（ingest-java / retrieval-proxy） | C1 字段、C3 语义澄清、Q5 消费方 | ☐ 通过　☐ 修改意见 | | |
+| 数智化中心 | Q6 run 端点暴露面、Q3 鉴权、Q4 排期归属 | ☐ 通过　☐ 修改意见 | | |
+| 后端A（ingest-java / retrieval-proxy） | C1 字段、C2 主体注入、C3 语义澄清、Q5 消费方 | ☐ 通过　☐ 修改意见 | | |
 | 后端C（web 上传表单加三字段） | C1 对前端表单的影响 | ☐ 通过　☐ 修改意见 | | |
 
 修改意见记录区（按角色追加，勿覆盖）：

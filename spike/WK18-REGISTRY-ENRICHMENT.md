@@ -60,12 +60,19 @@
   GET /ingest/documents/{doc_id} 富化；登记查不到该 doc_id → 该候选属性全缺、
   判不通过（宁缺勿错）。retrieval hits 的同名可选字段仅作展示用途，
   matcher 不得作为判定依据。
-- 匹配主体 = 清单上传人：POST /checklists 收到的 X-User-Id（企微 userid）须随清单持久化
-  （现状：operator 只写进审计事件 AuditEvent，Checklist record 无该字段——本提案新增）；
-  POST /checklists/{id}/run 时 matcher 经
-  GET /identity/principal/{wecomUserId}（wecom-sync）解析四元组，
-  作为检索 principal 下推（红线 1）。解析失败 → 任务 FAILED，错误体
-  {"detail":"身份解析失败"}，不回退匿名、不按默认密级。
+- 匹配主体的四元组由**调用方按会话态注入**（与 retrieval.md「由网关注入、不由前端传入」
+  同源）：POST /checklists/{id}/run 的请求体带 principal（user_id/dept/roles/
+  max_sensitivity/projects[/tenant]），matcher 原样透传给 retrieval-proxy（红线 1）。
+  matcher **不做任何 id→principal 解析**，也不调用身份服务。
+  请求头 X-User-Id 只作审计 actor（对齐 matching.md 既有条款），不参与权限判定。
+- 标识口径（2026-11-05 裁定）：前端会话用户 ID 与企微 userid 是两个独立入口的
+  用户标识，**互不相同、不做转换**。因此严禁用 X-User-Id 去调
+  /identity/principal/{wecomUserId}——两者命名空间不同，会解析到错误的人。
+- principal 缺失或 dept 为空 → 任务 FAILED，错误体 {"detail":"缺少会话权限主体"}；
+  **不回退匿名、不按默认密级**（宁缺勿错，避免静默越权或静默丢料）。
+- run 是异步的（立即返回 task_id、后台执行），principal 须在受理时捕获并随任务
+  在内存中传递；**不得写入 MatchTask 的序列化字段**——GET /tasks/{id} 直接返回
+  MatchTask，写进去会把权限四元组回显给调用方。
 - matcher → retrieval-proxy 的 kb_scope 来自配置（MATCHER_KB_SCOPE，
   逗号分隔）；未配置视为无权，召回返回空（与 has_any_access 同语义）。
 ```
@@ -91,7 +98,7 @@
 | 步 | 模块 | 内容 | 验收 |
 | --- | --- | --- | --- |
 | 1 | ingest-java | 采集+登记+返回三字段；不推引擎 | 新增用例：缺省 null / 非法值 400 |
-| 2 | matcher | Checklist 增 operator 字段并持久化；IngestRegistryClient（按 doc_id 富化，带缓存）；runTask 解析 principal 并传入 `recall(item, principal)`；HttpCandidateProvider 接线装配 | 富化失败→missing；principal 解析失败→任务 FAILED |
+| 2 | matcher | run 请求体接收 principal 并随任务内存传递（不写入 MatchTask 序列化字段）；`IngestRegistryClient`（按 doc_id 富化，带缓存）；runTask 把 principal 传入 `recall(item, principal)`；HttpCandidateProvider 接线装配；X-User-Id 仅作审计 actor | 富化失败→missing；principal 缺失/dept 空→任务 FAILED |
 | 3 | retrieval-proxy | §3.3 澄清仅文档，代码不动 | — |
 | 4 | 部署 | matcher/packager 纳入 deploy/test compose + nginx 规则 | 53 冒烟：清单→匹配→manifest→packager 产物 |
 | 5 | 回归 | 假阳性率验证依赖 T03 黄金评测集（未就绪则先用脱敏样例清单验链路） | 链路通 / 指标待 T03 |
@@ -102,6 +109,11 @@
   测试环境可接受；生产前须换 DB 实现（建议挂到 T16 治理项一并排期，本草案不展开）。
 - **越权面**：`GET /ingest/documents` 目前无鉴权可枚举——富化调用在容器内网走，
   但契约应注明该接口生产必须置于网关鉴权后（与 matching.md 红线2同措辞）。签字时一并确认。
+- **谁注入 principal（新增，由 §3.2 改动带出）**：gateway.md 既有纪律是
+  「principal 不由浏览器构造，生产由网关/BFF 按会话态注入」。因此 run 请求在生产
+  必须经网关/BFF 注入四元组，前端只带会话凭证。若 matcher 直接暴露给浏览器且信任
+  请求体里的 principal，等于把权限判定交给客户端——**签字时须确认 run 端点的暴露面**。
+  过渡期（测试环境直连）可接受，但契约要写明生产形态。
 - provider 已按「std_type 缺失＝UNKNOWN 判不通过」实现（commit 5d76a00），
   与 §3.4 方案甲衔接后无需改判定逻辑。
 
