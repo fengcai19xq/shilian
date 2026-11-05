@@ -60,8 +60,9 @@
   GET /ingest/documents/{doc_id} 富化；登记查不到该 doc_id → 该候选属性全缺、
   判不通过（宁缺勿错）。retrieval hits 的同名可选字段仅作展示用途，
   matcher 不得作为判定依据。
-- 匹配主体 = 清单上传人：POST /checklists 的 X-User-Id（企微 userid）随
-  清单持久化；POST /checklists/{id}/run 时 matcher 经
+- 匹配主体 = 清单上传人：POST /checklists 收到的 X-User-Id（企微 userid）须随清单持久化
+  （现状：operator 只写进审计事件 AuditEvent，Checklist record 无该字段——本提案新增）；
+  POST /checklists/{id}/run 时 matcher 经
   GET /identity/principal/{wecomUserId}（wecom-sync）解析四元组，
   作为检索 principal 下推（红线 1）。解析失败 → 任务 FAILED，错误体
   {"detail":"身份解析失败"}，不回退匿名、不按默认密级。
@@ -82,15 +83,15 @@
 
 - **方案甲（推荐先做）**：上传时人工传 `std_type`（融资部建档时本来就知道这是什么资料）。
   词典 T02 未就绪也能跑通闭环，后续 T02 完成后加文件名启发 + 校验。
-- **方案乙**：文件名对词典（`matcher` 的 `TypeDictionary` 已存在，80~120 类型，T02 是扩充）
-  自动归一，命不中保持 null。可作为甲的兜底并存。
+- **方案乙**：文件名对词典（`matcher` 的 `TypeDictionary` 已存在，`types.yaml` 现有
+  **20 类**；T02 是扩充它）自动归一，命不中保持 null。可作为甲的兜底并存。
 
 ## 4. 实现切分（签字后按序执行）
 
 | 步 | 模块 | 内容 | 验收 |
 | --- | --- | --- | --- |
 | 1 | ingest-java | 采集+登记+返回三字段；不推引擎 | 新增用例：缺省 null / 非法值 400 |
-| 2 | matcher | IngestRegistryClient（按 doc_id 富化，带缓存）；runTask 解析 principal 并传入 `recall(item, principal)`；HttpCandidateProvider 接线装配 | 富化失败→missing；principal 解析失败→任务 FAILED |
+| 2 | matcher | Checklist 增 operator 字段并持久化；IngestRegistryClient（按 doc_id 富化，带缓存）；runTask 解析 principal 并传入 `recall(item, principal)`；HttpCandidateProvider 接线装配 | 富化失败→missing；principal 解析失败→任务 FAILED |
 | 3 | retrieval-proxy | §3.3 澄清仅文档，代码不动 | — |
 | 4 | 部署 | matcher/packager 纳入 deploy/test compose + nginx 规则 | 53 冒烟：清单→匹配→manifest→packager 产物 |
 | 5 | 回归 | 假阳性率验证依赖 T03 黄金评测集（未就绪则先用脱敏样例清单验链路） | 链路通 / 指标待 T03 |
