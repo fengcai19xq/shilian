@@ -39,12 +39,15 @@ public class IngestController {
             @RequestParam(required = false) String project,
             @RequestParam(required = false) String period,
             @RequestParam(required = false) String scope,
-            @RequestParam(required = false) String title) throws IOException {
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) Integer copies,
+            @RequestParam(required = false) Boolean stamped,
+            @RequestParam(required = false) String stdType) throws IOException {
         byte[] content = file == null ? null : file.getBytes();
         String fileName = file == null ? null : file.getOriginalFilename();
         DocumentView view = DocumentView.of(service.submit(
                 new UploadCommand(actor, fileName, content, dept, sensitivity, project, period, scope, title,
-                        tenant)));
+                        tenant, copies, stamped, stdType)));
         return ResponseEntity.accepted().location(URI.create("/ingest/documents/" + view.docId())).body(view);
     }
 

@@ -29,13 +29,17 @@ public final class Dtos {
             String ragflowDocId,
             String uploadedBy,
             Instant createdAt,
-            Instant updatedAt) {
+            Instant updatedAt,
+            Integer copies,
+            Boolean stamped,
+            String stdType) {
 
         static DocumentView of(IngestDocument d) {
             return new DocumentView(d.getDocId(), d.getTitle(), d.getFileName(), d.getFileType(), d.getSizeBytes(),
                     d.getDept(), d.getSensitivity(), d.getProject(), d.getPeriod(), d.getScope(), d.getStatus(),
                     d.getReason(), d.getPageCount(), d.getChunkCount(), d.getDatasetId(), d.getRagflowDocId(),
-                    d.getUploadedBy(), d.getCreatedAt(), d.getUpdatedAt());
+                    d.getUploadedBy(), d.getCreatedAt(), d.getUpdatedAt(),
+                    d.getCopies(), d.getStamped(), d.getStdType());
         }
     }
 
