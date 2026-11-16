@@ -4,8 +4,7 @@ RUN corepack enable && npm config set registry https://registry.npmmirror.com
 COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web ./
-ARG VITE_DEV_PRINCIPAL
-ENV VITE_API_MODE=http VITE_API_BASE=/api VITE_DEV_PRINCIPAL=${VITE_DEV_PRINCIPAL}
+ENV VITE_API_MODE=http VITE_API_BASE=/api
 RUN pnpm build
 
 FROM nginx:1.27-alpine

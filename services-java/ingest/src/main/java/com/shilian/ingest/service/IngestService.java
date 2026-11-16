@@ -19,6 +19,8 @@ import com.shilian.ingest.ragflow.RagflowClient;
 import com.shilian.ingest.ragflow.RagflowException;
 import com.shilian.ingest.ragflow.ServerSideParseException;
 import com.shilian.ingest.store.DocumentRepository;
+import com.shilian.ingest.store.DocumentStorage;
+import com.shilian.ingest.store.NoopDocumentStorage;
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -59,9 +62,17 @@ public class IngestService {
     private final boolean weknoraSink;
     private final Executor executor;
     private final Clock clock;
+    private final DocumentStorage storage;
 
     public IngestService(DocumentRepository repo, AuditSink audit, RagflowClient ragflow, DocumentParser parser,
             Chunker chunker, IngestProperties props, @Qualifier("ingestExecutor") Executor executor, Clock clock) {
+        this(repo, audit, ragflow, parser, chunker, props, executor, clock, new NoopDocumentStorage());
+    }
+
+    @Autowired
+    public IngestService(DocumentRepository repo, AuditSink audit, RagflowClient ragflow, DocumentParser parser,
+            Chunker chunker, IngestProperties props, @Qualifier("ingestExecutor") Executor executor, Clock clock,
+            DocumentStorage storage) {
         this.repo = repo;
         this.audit = audit;
         this.ragflow = ragflow;
@@ -71,6 +82,7 @@ public class IngestService {
         this.weknoraSink = props.weknoraSink();
         this.executor = executor;
         this.clock = clock;
+        this.storage = storage;
     }
 
     /** 登记文档并触发解析；返回登记后的快照（同步模式下即为终态）。参数非法抛 IllegalArgumentException。 */
@@ -87,9 +99,13 @@ public class IngestService {
         String fileName = blankToNull(cmd.fileName()) == null ? "unnamed" : cmd.fileName().strip();
         String title = blankToNull(cmd.title()) == null ? fileName : cmd.title().strip();
 
-        IngestDocument doc = new IngestDocument(repo.nextId(), title, fileName, FileType.extensionOf(fileName),
+        String docId = repo.nextId();
+        // 先落原始文件，再登记；URI 随登记一起持久化，packager 可按 URI 读取。
+        String storageUri = storage.save(docId, fileName, cmd.content());
+        IngestDocument doc = new IngestDocument(docId, title, fileName, FileType.extensionOf(fileName),
                 cmd.content().length, dept, sensitivity, blankToNull(cmd.project()), blankToNull(cmd.period()),
-                blankToNull(cmd.scope()), actor, clock.instant(), cmd.tenantOrDefault());
+                blankToNull(cmd.scope()), actor, clock.instant(), cmd.tenantOrDefault(),
+                cmd.copies(), cmd.stamped(), cmd.stdType(), storageUri);
         repo.save(doc);
         writeAudit(actor, doc, null);
 

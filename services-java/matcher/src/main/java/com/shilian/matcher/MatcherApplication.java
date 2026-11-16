@@ -7,11 +7,18 @@ import com.shilian.matcher.config.ParserConfig;
 import com.shilian.matcher.config.ScoringConfig;
 import com.shilian.matcher.port.CandidateProvider;
 import com.shilian.matcher.port.DecideProvider;
+import com.shilian.matcher.port.HttpCandidateProvider;
+import com.shilian.matcher.port.IngestRegistryClient;
+import com.shilian.matcher.port.LexicalDecideProvider;
 import com.shilian.matcher.port.NullCandidateProvider;
 import com.shilian.matcher.port.RejectAllDecideProvider;
 import com.shilian.matcher.service.MatcherService;
+import com.shilian.matcher.service.MemoryStore;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -39,19 +46,46 @@ public class MatcherApplication {
 
     @Bean
     @ConditionalOnMissingBean
-    public CandidateProvider candidateProvider() {
-        return new NullCandidateProvider();
+    public IngestRegistryClient ingestRegistryClient(
+            @Value("${ingest.url:http://ingest:8030}") String ingestUrl) {
+        return new IngestRegistryClient(ingestUrl);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public DecideProvider decideProvider() {
-        return new RejectAllDecideProvider();
+    public CandidateProvider candidateProvider(
+            @Value("${retrieval.url:http://retrieval:8040}") String retrievalUrl,
+            @Value("${retrieval.kb-scope:}") String kbScopeStr,
+            @Value("${retrieval.top-k:8}") int topK,
+            @Value("${retrieval.score-threshold:0.35}") double scoreThreshold,
+            IngestRegistryClient registryClient,
+            @Value("${matcher.enrichment.enabled:false}") boolean enrichmentEnabled) {
+        List<String> kbScope = kbScopeStr == null || kbScopeStr.isBlank()
+                ? List.of()
+                : List.of(kbScopeStr.split(","));
+        // 成册闭环未验收前默认关闭登记富化：宁可判 missing，也不让未完成的
+        // 候选属性链把分数算错。WK18 验收后再打开。
+        return new HttpCandidateProvider(retrievalUrl, kbScope, topK, scoreThreshold,
+                enrichmentEnabled ? registryClient : null);
     }
 
     @Bean
-    public MatcherService matcherService(CandidateProvider candidates, DecideProvider decide) {
-        return new MatcherService(candidates, decide, new MatcherConfig(ScoringConfig.fromEnv(), new ParserConfig()));
+    @ConditionalOnMissingBean
+    public DecideProvider decideProvider(
+            @Value("${matcher.decide.backend:lexical}") String backend) {
+        return "reject".equalsIgnoreCase(backend)
+                ? new RejectAllDecideProvider()
+                : new LexicalDecideProvider();
+    }
+
+    @Bean
+    public MatcherService matcherService(CandidateProvider candidates, DecideProvider decide,
+            @Value("${matcher.store.path:}") String storePath) {
+        MemoryStore store = storePath == null || storePath.isBlank()
+                ? new MemoryStore()
+                : new MemoryStore(Path.of(storePath));
+        return new MatcherService(candidates, decide,
+                new MatcherConfig(ScoringConfig.fromEnv(), new ParserConfig()), store, null);
     }
 
     @Bean(name = "matcherExecutor", destroyMethod = "shutdown")

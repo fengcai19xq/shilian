@@ -1,64 +1,438 @@
-# 资料类型词典：std_type -> 标准名称 + 别名
+# 资料类型词典 v1：std_type -> 标准名称 + 别名 + 必备属性
 # 命中别名才归一；词典没有的资料名称一律标 unknown，不猜。
-version: 1
+#
+# required_attributes 说明：
+#   period:   是否需要期间（年份）—— 财务/审计/税务类必填
+#   scope:    是否需要口径（合并/单体）—— 报表类必填
+#   copies:   是否需要份数 —— 合同/证书类必填
+#   stamped:  是否需要盖章 —— 几乎所有对外提交的文件必填
+#   缺失字段在 matcher 硬约束判定中按不通过处理（constraints.py）
+version: 2
 types:
+  # ---------- 工商基础类 ----------
   BUSINESS_LICENSE:
     std_name: 营业执照
-    aliases: [营业执照, 三证合一营业执照, 工商营业执照, 执照副本, 营业执照副本]
+    aliases: [营业执照, 三证合一营业执照, 工商营业执照, 执照副本, 营业执照副本, 统一社会信用代码证书]
+    required_attributes: { period: false, scope: false, copies: true, stamped: true }
+
   ARTICLES_OF_ASSOCIATION:
     std_name: 公司章程
-    aliases: [公司章程, 章程, 最新版公司章程, 现行有效章程, 章程及修正案]
+    aliases: [公司章程, 章程, 最新版公司章程, 现行有效章程, 章程及修正案, 合伙协议]
+    required_attributes: { period: false, scope: false, copies: true, stamped: true }
+
+  CAPITAL_VERIFICATION:
+    std_name: 验资报告
+    aliases: [验资报告, 出资证明, 实收资本验资报告, 资本验证报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  SHAREHOLDER_RESOLUTION:
+    std_name: 股东会决议
+    aliases: [股东会决议, 股东大会决议, 股东决定, 股东会决议文件]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  BOARD_RESOLUTION:
+    std_name: 董事会决议
+    aliases: [董事会决议, 董事会决议文件, 董事会会议纪要决议, 董事决议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  SUPERVISORY_RESOLUTION:
+    std_name: 监事会决议
+    aliases: [监事会决议, 监事会决议文件, 监事决议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  EQUITY_STRUCTURE:
+    std_name: 股权结构表
+    aliases: [股权结构表, 股权结构, 股权分布表, 股东持股比例表]
+    required_attributes: { period: true, scope: false, copies: false, stamped: true }
+
+  CHANGE_REGISTRATION:
+    std_name: 变更登记
+    aliases: [变更登记, 工商变更登记, 变更登记通知书, 准予变更登记通知书]
+    required_attributes: { period: false, scope: false, copies: true, stamped: true }
+
+  # ---------- 财务审计类 ----------
   AUDIT_REPORT:
     std_name: 审计报告
-    aliases: [审计报告, 年度审计报告, 财务审计报告, 会计师事务所审计报告, 经审计财务报表]
+    aliases: [审计报告, 年度审计报告, 财务审计报告, 会计师事务所审计报告, 经审计财务报表, 审计报告正文]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
   FINANCIAL_STATEMENT:
     std_name: 财务报表
-    aliases: [财务报表, 资产负债表, 利润表, 现金流量表, 月度财务报表, 管理报表]
+    aliases: [财务报表, 资产负债表, 利润表, 现金流量表, 月度财务报表, 管理报表, 财务报告]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  BALANCE_SHEET:
+    std_name: 资产负债表
+    aliases: [资产负债表, 资产负债表副本, 余额表]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  INCOME_STATEMENT:
+    std_name: 利润表
+    aliases: [利润表, 损益表, 利润及利润分配表, 收入成本表]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  CASH_FLOW_STATEMENT:
+    std_name: 现金流量表
+    aliases: [现金流量表, 现金流量表副本, 资金流量表]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  EQUITY_CHANGE_STATEMENT:
+    std_name: 所有者权益变动表
+    aliases: [所有者权益变动表, 股东权益变动表, 权益变动表]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  FINANCIAL_NOTES:
+    std_name: 财务报表附注
+    aliases: [财务报表附注, 报表附注, 会计报表附注, 附注]
+    required_attributes: { period: true, scope: true, copies: false, stamped: true }
+
+  MANAGEMENT_REPORT:
+    std_name: 管理层讨论与分析
+    aliases: [管理层讨论与分析, MD&A, 管理层分析报告, 经营情况分析]
+    required_assets: { period: true, scope: true, copies: false, stamped: false }
+    required_attributes: { period: true, scope: true, copies: false, stamped: false }
+
+  INTERIM_FINANCIAL_STATEMENT:
+    std_name: 中期财务报表
+    aliases: [中期财务报表, 半年度财务报表, 季度财务报表, 月报]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  # ---------- 税务类 ----------
   TAX_RETURN:
     std_name: 纳税申报表
     aliases: [纳税申报表, 企业所得税年度申报表, 增值税申报表, 完税证明, 纳税证明]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  TAX_PAYMENT_CERTIFICATE:
+    std_name: 完税证明
+    aliases: [完税证明, 纳税完税证明, 税收完税证明, 完税凭证]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  TAX_REGISTRATION:
+    std_name: 税务登记证
+    aliases: [税务登记证, 税务登记证副本, 税务登记证正本]
+    required_attributes: { period: false, scope: false, copies: true, stamped: true }
+
+  VAT_SPECIAL_INVOICE:
+    std_name: 增值税专用发票
+    aliases: [增值税专用发票, 专票, 增值税发票]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  # ---------- 银行金融类 ----------
   BANK_STATEMENT:
     std_name: 银行流水
-    aliases: [银行流水, 对公账户流水, 银行对账单, 账户流水明细]
+    aliases: [银行流水, 对公账户流水, 银行对账单, 账户流水明细, 银行交易明细]
+    required_attributes: { period: true, scope: false, copies: false, stamped: false }
+
   CREDIT_REPORT:
     std_name: 企业征信报告
-    aliases: [企业征信报告, 征信报告, 人民银行征信报告, 信用报告]
-  BOARD_RESOLUTION:
-    std_name: 董事会决议
-    aliases: [董事会决议, 董事会决议文件, 董事会会议纪要决议]
-  SHAREHOLDER_RESOLUTION:
-    std_name: 股东会决议
-    aliases: [股东会决议, 股东大会决议, 股东决定]
-  CAPITAL_VERIFICATION:
-    std_name: 验资报告
-    aliases: [验资报告, 出资证明, 实收资本验资报告]
+    aliases: [企业征信报告, 征信报告, 人民银行征信报告, 信用报告, 企业信用报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  LOAN_CONTRACT:
+    std_name: 借款合同
+    aliases: [借款合同, 贷款合同, 银行借款合同, 综合授信合同, 授信协议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  GUARANTEE_CONTRACT:
+    std_name: 担保合同
+    aliases: [担保合同, 保证合同, 连带责任保证合同, 担保协议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  PLEDGE_CONTRACT:
+    std_name: 质押合同
+    aliases: [质押合同, 质押协议, 股权质押合同, 应收账款质押合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  BANK_CREDIT_APPROVAL:
+    std_name: 银行授信批复
+    aliases: [银行授信批复, 授信批复, 贷款批复, 审批意见书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  FINANCIAL_STATEMENT_BANK:
+    std_name: 银行对账单
+    aliases: [银行对账单, 银行余额对账单, 账户对账单]
+    required_attributes: { period: true, scope: false, copies: false, stamped: true }
+
+  # ---------- 法律类 ----------
   LEGAL_OPINION:
     std_name: 法律意见书
-    aliases: [法律意见书, 律师意见书, 专项法律意见书]
+    aliases: [法律意见书, 律师意见书, 专项法律意见书, 法律尽职调查报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  DUE_DILIGENCE_REPORT:
+    std_name: 尽职调查报告
+    aliases: [尽职调查报告, 尽调报告, DD报告, 法律尽调报告, 财务尽调报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  LITIGATION_RECORD:
+    std_name: 诉讼记录
+    aliases: [诉讼记录, 涉诉记录, 诉讼案件清单, 裁判文书]
+    required_attributes: { period: true, scope: false, copies: false, stamped: false }
+
+  ARBITRATION_AWARD:
+    std_name: 仲裁裁决书
+    aliases: [仲裁裁决书, 仲裁书, 裁决书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  COMPLIANCE_CERTIFICATE:
+    std_name: 合规证明
+    aliases: [合规证明, 合规报告, 无违规证明, 合规声明]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  # ---------- 合同类 ----------
+  SALES_CONTRACT:
+    std_name: 销售合同
+    aliases: [销售合同, 购销合同, 销售框架协议, 订单合同, 产品销售合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  PURCHASE_CONTRACT:
+    std_name: 采购合同
+    aliases: [采购合同, 采购框架协议, 供货合同, 供应商合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  LEASE_CONTRACT:
+    std_name: 租赁合同
+    aliases: [租赁合同, 房屋租赁合同, 厂房租赁协议, 土地租赁合同, 设备租赁合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  SERVICE_CONTRACT:
+    std_name: 服务合同
+    aliases: [服务合同, 服务协议, 技术服务合同, 咨询服务协议, 委托服务合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  CONSTRUCTION_CONTRACT:
+    std_name: 建设工程施工合同
+    aliases: [建设工程施工合同, 施工合同, 工程合同, 建设合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  FRAMEWORK_AGREEMENT:
+    std_name: 框架协议
+    aliases: [框架协议, 战略合作协议, 合作框架协议, 合作意向书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  TRANSFER_CONTRACT:
+    std_name: 转让合同
+    aliases: [转让合同, 股权转让协议, 资产转让合同, 转让协议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  # ---------- 知识产权类 ----------
   PATENT_CERTIFICATE:
     std_name: 专利证书
-    aliases: [专利证书, 发明专利证书, 实用新型专利证书, 专利权证书]
+    aliases: [专利证书, 发明专利证书, 实用新型专利证书, 专利权证书, 外观设计专利证书]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
   SOFTWARE_COPYRIGHT:
     std_name: 软件著作权证书
     aliases: [软件著作权证书, 软著证书, 计算机软件著作权登记证书]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  TRADEMARK_CERTIFICATE:
+    std_name: 商标注册证
+    aliases: [商标注册证, 商标证书, 商标注册证明, 注册商标证]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  INTELLECTUAL_PROPERTY_LICENSE:
+    std_name: 知识产权许可协议
+    aliases: [知识产权许可协议, 专利许可协议, 商标许可协议, 技术许可合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  DOMAIN_REGISTRATION:
+    std_name: 域名注册证书
+    aliases: [域名注册证书, 域名证书, 域名备案]
+    required_attributes: { period: false, scope: false, copies: false, stamped: false }
+
+  # ---------- 资质证书类 ----------
   HIGH_TECH_CERTIFICATE:
     std_name: 高新技术企业证书
-    aliases: [高新技术企业证书, 高新证书, 高企证书]
-  SALES_CONTRACT:
-    std_name: 销售合同
-    aliases: [销售合同, 购销合同, 销售框架协议, 订单合同]
-  PURCHASE_CONTRACT:
-    std_name: 采购合同
-    aliases: [采购合同, 采购框架协议, 供货合同]
-  LEASE_CONTRACT:
-    std_name: 租赁合同
-    aliases: [租赁合同, 房屋租赁合同, 厂房租赁协议]
-  SOCIAL_INSURANCE:
-    std_name: 社保缴纳证明
-    aliases: [社保缴纳证明, 社保证明, 社会保险参保证明, 社保缴费明细]
-  ID_CARD:
-    std_name: 法定代表人身份证明
-    aliases: [法定代表人身份证明, 法人身份证, 法定代表人身份证复印件, 法人证明书]
+    aliases: [高新技术企业证书, 高新证书, 高企证书, 高新技术企业认定证书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
   PRODUCT_CERTIFICATION:
     std_name: 产品认证证书
     aliases: [产品认证证书, 体系认证证书, ISO认证证书, 质量管理体系认证证书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  ISO_CERTIFICATE:
+    std_name: ISO管理体系认证证书
+    aliases: [ISO9001认证证书, ISO14001认证证书, ISO45001认证证书, ISO认证, 管理体系认证]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  PRODUCTION_LICENSE:
+    std_name: 生产许可证
+    aliases: [生产许可证, 工业产品生产许可证, 安全生产许可证, 制造许可证]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  ENVIRONMENTAL_ASSESSMENT:
+    std_name: 环评报告
+    aliases: [环评报告, 环境影响评价报告, 环境评估报告, 环评批复]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  SAFETY_CERTIFICATE:
+    std_name: 安全生产许可证
+    aliases: [安全生产许可证, 安全许可证, 安全生产许可]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  EXPORT_LICENSE:
+    std_name: 出口许可证
+    aliases: [出口许可证, 出口许可证书, 进出口许可证]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  # ---------- 人事类 ----------
+  SOCIAL_INSURANCE:
+    std_name: 社保缴纳证明
+    aliases: [社保缴纳证明, 社保证明, 社会保险参保证明, 社保缴费明细, 社保清单]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  HOUSING_FUND_CERTIFICATE:
+    std_name: 公积金缴纳证明
+    aliases: [公积金缴纳证明, 公积金证明, 住房公积金缴存证明]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  ID_CARD:
+    std_name: 法定代表人身份证明
+    aliases: [法定代表人身份证明, 法人身份证, 法定代表人身份证复印件, 法人证明书, 身份证复印件]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  EMPLOYEE_ROSTER:
+    std_name: 员工花名册
+    aliases: [员工花名册, 员工名册, 在职员工名单, 职工名册]
+    required_attributes: { period: true, scope: false, copies: false, stamped: false }
+
+  LABOR_CONTRACT:
+    std_name: 劳动合同
+    aliases: [劳动合同, 劳动合同书, 用工合同, 雇佣合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  # ---------- 投融资类 ----------
+  INVESTMENT_AGREEMENT:
+    std_name: 投资协议
+    aliases: [投资协议, 增资协议, 投资入股协议, 投资合作合同]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  SHAREHOLDERS_AGREEMENT:
+    std_name: 股东协议
+    aliases: [股东协议, 股东合作协议, 股东出资协议, 合资协议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  VALUATION_REPORT:
+    std_name: 资产评估报告
+    aliases: [资产评估报告, 评估报告, 评估报告书, 资产评估书]
+    required_attributes: { period: true, scope: true, copies: true, stamped: true }
+
+  INVESTMENT_INTENTION:
+    std_name: 投资意向书
+    aliases: [投资意向书, 投资意向函, 意向协议, 投资意向协议]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  TERM_SHEET:
+    std_name: 投资条款清单
+    aliases: [投资条款清单, Term Sheet, 条款清单, 投资条款书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  # ---------- 保险类 ----------
+  INSURANCE_POLICY:
+    std_name: 保险单
+    aliases: [保险单, 保单, 保险合同, 保险凭证]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  INSURANCE_ENDORSEMENT:
+    std_name: 保险批单
+    aliases: [保险批单, 批单, 保险变更批单]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  # ---------- 其他 ----------
+  BUSINESS_PLAN:
+    std_name: 商业计划书
+    aliases: [商业计划书, BP, 商业计划, 项目计划书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  FEASIBILITY_REPORT:
+    std_name: 可行性研究报告
+    aliases: [可行性研究报告, 可研报告, 可行性分析报告, 项目可行性报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  PROJECT_APPROVAL:
+    std_name: 项目批复
+    aliases: [项目批复, 项目备案, 立项批复, 项目核准文件]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  MEETING_MINUTES:
+    std_name: 会议纪要
+    aliases: [会议纪要, 会议记录, 董事会会议纪要, 股东会会议纪要]
+    required_attributes: { period: true, scope: false, copies: false, stamped: true }
+
+  ENTERPRISE_CREDIT_REPORT:
+    std_name: 企业资信报告
+    aliases: [企业资信报告, 资信报告, 资信证明, 银行资信证明]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  ANNUAL_REPORT:
+    std_name: 企业年度报告
+    aliases: [企业年度报告, 年报, 企业年报, 工商年报, 年度报告书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  ENVIRONMENTAL_COMPLIANCE:
+    std_name: 环保合规证明
+    aliases: [环保合规证明, 环保证明, 排污许可证, 环保达标证明]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  CUSTOMS_REGISTRATION:
+    std_name: 海关登记证
+    aliases: [海关登记证, 报关单位登记证书, 海关注册登记证书]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  FOREIGN_EXCHANGE_REGISTRATION:
+    std_name: 外汇登记证
+    aliases: [外汇登记证, 外汇登记证IC卡, 境外投资外汇登记]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  ESG_REPORT:
+    std_name: ESG报告
+    aliases: [ESG报告, 社会责任报告, 可持续发展报告, CSR报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  INTERNAL_CONTROL_REPORT:
+    std_name: 内部控制审计报告
+    aliases: [内部控制审计报告, 内控审计报告, 内控报告, 内部控制评价报告]
+    required_attributes: { period: true, scope: false, copies: true, stamped: true }
+
+  AUDIT_CONFIRMATION:
+    std_name: 审计函证
+    aliases: [审计函证, 银行函证, 往来款函证, 函证回函]
+    required_attributes: { period: true, scope: false, copies: false, stamped: true }
+
+  MAJOR_CONTRACT_SUMMARY:
+    std_name: 重大合同汇总表
+    aliases: [重大合同汇总表, 重大合同清单, 主要合同汇总, 在执行合同清单]
+    required_attributes: { period: true, scope: false, copies: false, stamped: false }
+
+  ASSET_INVENTORY:
+    std_name: 资产盘点表
+    aliases: [资产盘点表, 盘点表, 存货盘点表, 固定资产盘点表]
+    required_attributes: { period: true, scope: false, copies: false, stamped: false }
+
+  BANK_CREDIT_REPORT_CARD:
+    std_name: 银行信用评级卡
+    aliases: [银行信用评级卡, 信用评级报告, 信用等级证书]
+    required_attributes: { period: true, scope: false, copies: true, stamped: false }
+
+  ACCOUNT_OPENING_PERMIT:
+    std_name: 开户许可证
+    aliases: [开户许可证, 银行开户许可证, 基本户开户许可证]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  FOREIGN_INVESTMENT_APPROVAL:
+    std_name: 外商投资批准证书
+    aliases: [外商投资批准证书, 外商投资企业批准证书, 外资批准证书]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  CODE_CERTIFICATE:
+    std_name: 组织机构代码证
+    aliases: [组织机构代码证, 代码证, 机构代码证]
+    required_attributes: { period: false, scope: false, copies: true, stamped: false }
+
+  CERTIFIED_SEAL:
+    std_name: 公章备案证明
+    aliases: [公章备案证明, 印章备案证明, 公章登记卡, 印鉴卡]
+    required_attributes: { period: false, scope: false, copies: true, stamped: true }

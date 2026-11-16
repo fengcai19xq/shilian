@@ -1,4 +1,4 @@
-// http 客户端：路径、X-User-Id 头、网关正文归一化、错误处理
+// http 客户端：路径、权限字段剥离、网关正文归一化、错误处理
 import { ApiHttpError, createHttpApi } from '../api/http'
 import { INVOKE_PATH, PRINCIPAL, ROUTE_PATH, SEARCH_PATH, gatewayReply, mockFetch } from '../test/httpHarness'
 
@@ -7,21 +7,22 @@ afterEach(() => {
 })
 
 describe('http 客户端', () => {
-  it('三个接口分别打到 /api 前缀下的契约路径，并带 X-User-Id', async () => {
+  it('三个接口分别打到 /api 前缀下的契约路径，且不发送 principal / X-User-Id', async () => {
     const { calls } = mockFetch({
       [ROUTE_PATH]: { decision: 'general', reason: '', confirm_required: false, allow_general_fallback: true, evidence: { source: 'decide' } },
       [SEARCH_PATH]: { hits: [], scope_desc: 'x', total: 0 },
       [INVOKE_PATH]: gatewayReply('ok'),
     })
-    const api = createHttpApi({ userId: 'u_1' })
-    await api.route({ question: 'q', kb_scope: ['kb'] })
+    const api = createHttpApi()
+    await api.route({ question: 'q', kb_scope: ['kb'], principal: PRINCIPAL })
     await api.search({ query: 'q', kb_scope: ['kb'], mode: 'full', principal: PRINCIPAL })
-    await api.generate({ purpose: 'generate', sensitivity: 'L1', preferred_model: 'm', payload: { query: 'q' } })
+    await api.generate({ purpose: 'generate', sensitivity: 'L1', preferred_model: 'm', principal: PRINCIPAL, payload: { query: 'q' } })
     expect(calls.map((c) => c.path)).toEqual([ROUTE_PATH, SEARCH_PATH, INVOKE_PATH])
     expect(calls[0].body).toMatchObject({ question: 'q', user_choice: 'auto' })
-    expect(calls[0].headers['X-User-Id']).toBe('u_1')
-    // 请求体带 principal 时以其 user_id 为准
-    expect(calls[1].headers['X-User-Id']).toBe('u_10231')
+    for (const call of calls) {
+      expect(call.body).not.toHaveProperty('principal')
+      expect(call.headers['X-User-Id']).toBeUndefined()
+    }
     expect(calls[2].headers['Content-Type']).toBe('application/json')
   })
 
@@ -74,10 +75,11 @@ describe('http 客户端', () => {
     expect(calls[0].headers['Content-Type']).toBeUndefined()
   })
 
-  it('本地联调注入 X-User-Id 时才带上；网关态由服务端会话覆盖', async () => {
+  it('身份端只由会话决定，不发送自报身份头', async () => {
     const { calls } = mockFetch({ '/api/identity/me': PRINCIPAL })
-    await createHttpApi({ userId: 'u_1' }).getPrincipal()
-    expect(calls[0].headers['X-User-Id']).toBe('u_1')
+    await createHttpApi().getPrincipal()
+    expect(calls[0].headers['X-User-Id']).toBeUndefined()
+    expect(calls[0].credentials).toBe('include')
   })
 
   it('构建期注入主体时直接用，不打网络（本地联调免起后端）', async () => {
@@ -91,5 +93,73 @@ describe('http 客户端', () => {
     const err = await createHttpApi().getPrincipal().catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ApiHttpError)
     expect(err).toMatchObject({ service: 'identity', status: 401 })
+  })
+})
+
+describe('matcher HTTP 映射', () => {
+  it('任务 + 清单映射为前端三态卡片，保留候选与原文', async () => {
+    mockFetch({
+      '/api/matcher/tasks/tk_1': {
+        task: {
+          task_id: 'tk_1',
+          checklist_id: 'cl_1',
+          state: 'succeeded',
+          total: 1,
+          done: 1,
+          results: [
+            {
+              item_id: 'it_1',
+              no: '3.1',
+              std_type: 'AUDIT_REPORT',
+              std_name: '审计报告',
+              status: 'pending',
+              score: 0.7,
+              candidates: [
+                { doc_id: 'd_1', doc_name: '审计报告.pdf', rejected: false, final_score: 0.7 },
+                { doc_id: 'd_bad', doc_name: '错误.pdf', rejected: true, final_score: 0 },
+              ],
+              bound_doc_ids: [],
+              note: '',
+            },
+          ],
+        },
+        progress: 1,
+      },
+      '/api/matcher/checklists/cl_1': {
+        checklist_id: 'cl_1',
+        title: '测试清单',
+        items: [
+          {
+            item_id: 'it_1',
+            checklist_id: 'cl_1',
+            no: '3.1',
+            raw_text: '最近三年审计报告',
+            std_type: 'AUDIT_REPORT',
+            constraints: { period: ['2023'] },
+          },
+        ],
+      },
+    })
+    const task = await createHttpApi().getMatcherTask('tk_1')
+    expect(task).toMatchObject({ task_id: 'tk_1', checklist_id: 'cl_1', title: '测试清单', state: 'succeeded' })
+    expect(task.items[0]).toMatchObject({
+      item_id: 'it_1',
+      raw_text: '最近三年审计报告',
+      status: 'pending',
+      candidate_doc_name: '审计报告.pdf',
+      candidate_doc_ids: ['d_1'],
+      final_score: 0.7,
+    })
+  })
+
+  it('上传清单走 multipart，不手工设置 Content-Type', async () => {
+    const { calls } = mockFetch({
+      '/api/matcher/checklists': { checklist_id: 'cl_1', title: '测试清单', items: [] },
+    })
+    const file = new File(['x'], '清单.xlsx')
+    const checklist = await createHttpApi().uploadChecklist(file)
+    expect(checklist.checklist_id).toBe('cl_1')
+    expect(calls[0].path).toBe('/api/matcher/checklists')
+    expect(calls[0].headers['Content-Type']).toBeUndefined()
   })
 })

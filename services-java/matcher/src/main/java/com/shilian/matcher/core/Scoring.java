@@ -36,16 +36,18 @@ public final class Scoring {
         List<String> reasons = HardConstraints.check(item, candidate);
         if (!reasons.isEmpty()) {
             // 硬约束先行：不调 decide，省 token 也避免高分翻盘
+            double form = candidate.formScore() > 0 ? clamp(candidate.formScore()) : derivedForm(candidate);
             return new ScoredCandidate(candidate.docId(), candidate.docName(), candidate.uri(), true, reasons,
-                    candidate.recallScore(), 0.0, candidate.formScore(), 0.0, "");
+                    candidate.recallScore(), 0.0, form, 0.0, "");
         }
         DecideResult result = decide.decide(item, candidate);
         double p = clamp(result.p());
+        double form = candidate.formScore() > 0 ? clamp(candidate.formScore()) : derivedForm(candidate);
         double fin = config.wRecall() * clamp(candidate.recallScore())
                 + config.wDecide() * p
-                + config.wForm() * clamp(candidate.formScore());
+                + config.wForm() * form;
         return new ScoredCandidate(candidate.docId(), candidate.docName(), candidate.uri(), false, List.of(),
-                candidate.recallScore(), p, candidate.formScore(), round6(fin), result.reason());
+                candidate.recallScore(), p, form, round6(fin), result.reason());
     }
 
     public static ItemStatus decideStatus(double score, ScoringConfig config) {
@@ -91,6 +93,27 @@ public final class Scoring {
         }
         return new ItemResult(item.itemId(), item.no(), item.stdType(), item.stdName(), status, score, scored,
                 bound, null, note);
+    }
+
+    /**
+     * 候选形式分：期间/口径/份数/盖章四类属性齐备度。登记富化后 provider 不再提供
+     * formScore（为 0），由这里按元数据推导；已有非 0 值时保留调用方口径。
+     */
+    static double derivedForm(CandidateDoc candidate) {
+        int present = 0;
+        if (!candidate.period().isEmpty()) {
+            present++;
+        }
+        if (candidate.scope() != null) {
+            present++;
+        }
+        if (candidate.copies() != null) {
+            present++;
+        }
+        if (candidate.stamped() != null) {
+            present++;
+        }
+        return present / 4.0;
     }
 
     private static double round6(double value) {

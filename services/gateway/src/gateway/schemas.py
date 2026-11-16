@@ -40,11 +40,16 @@ class Principal(BaseModel):
     tenant 为可选字段（contracts/platform.md §5.1：出账键加租户维度）。
     缺省空串表示单租户部署 / 未启用平台模式，既有调用方不受影响——
     按 contracts/README.md「只增不改：新增可选字段无需协商」。
+
+    max_sensitivity 用于 T16 拒答策略（越权检测）与审计事件。
+    roles 用于 T16 RBAC（管理端点鉴权）。
     """
 
     user_id: str
     dept: list[str] = Field(default_factory=list)
     tenant: str = ""
+    max_sensitivity: str = "L1"
+    roles: list[str] = Field(default_factory=list)
 
 
 class InvokeRequest(BaseModel):
@@ -73,6 +78,9 @@ class InvokeResponse(BaseModel):
     正文位置（contracts/gateway.md T07 补充）：`purpose=generate` 的答案在**顶层
     `text`**。`output` 是历史结构，保留是为了不破坏按 `output.text` 读取的老调用方
     （如 WK06 的 OpenAI 兼容层与 gateway 自身测试）。
+
+    T16 新增：`refused` 为 True 时表示请求被拒答，`refusal_reason` 说明原因，
+    此时 `text` 为空、`usage` 为零。
     """
 
     model: str
@@ -82,3 +90,5 @@ class InvokeResponse(BaseModel):
     output: dict[str, Any] = Field(default_factory=dict)
     usage: Usage
     budget_alert: str | None = None
+    refused: bool = False
+    refusal_reason: str | None = None

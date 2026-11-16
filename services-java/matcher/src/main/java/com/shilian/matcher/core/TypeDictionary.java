@@ -28,13 +28,19 @@ public final class TypeDictionary {
     private static final Pattern NOISE = Pattern.compile(
             "[\\s\u3000()（）【】\\[\\]〈〉<>《》:：,，.。、/\\\\\\-_*+]", Pattern.UNICODE_CHARACTER_CLASS);
 
-    public record TypeHit(String stdType, String stdName, String status) {
+    public record TypeHit(String stdType, String stdName, String status,
+                          Map<String, Boolean> requiredAttributes) {
+        /** 兼容旧调用方：不传 requiredAttributes。 */
+        public TypeHit(String stdType, String stdName, String status) {
+            this(stdType, stdName, status, null);
+        }
     }
 
     private record Alias(String key, String stdType) {
     }
 
     private final Map<String, String> stdNames = new LinkedHashMap<>();
+    private final Map<String, Map<String, Boolean>> requiredAttrs = new LinkedHashMap<>();
     /** 别名按长度倒序匹配，避免「章程」吃掉「公司章程」。 */
     private final List<Alias> aliasIndex = new ArrayList<>();
 
@@ -45,6 +51,19 @@ public final class TypeDictionary {
                 Object nameValue = spec.get("std_name");
                 String stdName = nameValue == null ? stdType : String.valueOf(nameValue);
                 stdNames.put(stdType, stdName);
+                // 必备属性 period/scope/copies/stamped
+                if (spec.get("required_attributes") instanceof Map<?, ?> reqRaw) {
+                    Map<String, Boolean> req = new LinkedHashMap<>();
+                    for (String key : List.of("period", "scope", "copies", "stamped")) {
+                        Object val = reqRaw.get(key);
+                        if (val != null) {
+                            req.put(key, Boolean.parseBoolean(String.valueOf(val)));
+                        }
+                    }
+                    if (!req.isEmpty()) {
+                        requiredAttrs.put(stdType, req);
+                    }
+                }
                 Set<String> aliases = new LinkedHashSet<>();
                 if (spec.get("aliases") instanceof List<?> list) {
                     list.forEach(a -> aliases.add(String.valueOf(a)));
@@ -91,6 +110,11 @@ public final class TypeDictionary {
         return stdNames.get(stdType);
     }
 
+    /** 返回该类型的必备属性配置，未配置返回 null。 */
+    public Map<String, Boolean> requiredAttributes(String stdType) {
+        return requiredAttrs.get(stdType);
+    }
+
     /** 词典里的类型数。 */
     public int size() {
         return stdNames.size();
@@ -102,11 +126,12 @@ public final class TypeDictionary {
         if (!key.isEmpty()) {
             for (Alias alias : aliasIndex) {
                 if (key.contains(alias.key())) {
-                    return new TypeHit(alias.stdType(), stdNames.get(alias.stdType()), TypeStatus.RESOLVED);
+                    return new TypeHit(alias.stdType(), stdNames.get(alias.stdType()),
+                            TypeStatus.RESOLVED, requiredAttrs.get(alias.stdType()));
                 }
             }
         }
-        return new TypeHit(TypeStatus.UNKNOWN_TYPE, null, TypeStatus.UNKNOWN);
+        return new TypeHit(TypeStatus.UNKNOWN_TYPE, null, TypeStatus.UNKNOWN, null);
     }
 
     private static final class DefaultHolder {

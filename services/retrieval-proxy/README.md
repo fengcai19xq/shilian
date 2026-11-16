@@ -44,7 +44,9 @@ RAGFlow 地址与密钥一律读环境变量，不写进代码。本地只想验
 - `service.py`：条件随检索请求一起下发（检索前过滤）；返回体再做一次兜底校验，
   即使下游忽略条件也不会泄露越权文档名；`mode=probe` 时 top_k 压到 3、不 rerank、只返回最高分
 - 无部门授权或 `kb_scope` 为空时不发检索请求，直接返回 `total: 0`，不返回任何可推断存在性的信息
-- `audit.py`：每次检索写一条审计事件（who / query / scope / hit_doc_ids / ts），写出为可注入接口
+- `audit.py`：每次检索写一条审计事件（who / query / scope / hit_doc_ids / ts / tenant_id / outcome；失败检索也写，outcome=error），写出为可注入接口；设置 `AUDIT_LOG_PATH` 时使用追加写入的 JSONL 文件（0600），未设置时用内存实现
+- `WEKNORA_CACHE_TTL_SECONDS`：WeKnora KB/标签索引缓存 TTL（默认 60 秒）；新建库或项目标签不要求重启服务
+- **多租户边界**：WeKnora 通道把 tenant 编进 KB 名；RAGFlow 的 `metadata_condition` 没有 tenant 维度，因此 RAGFlow 通道当前只允许 `default` 租户，非默认租户直接 fail-closed（503），待租户元数据写入链路补齐后再开放
 
 ## 开发约定
 

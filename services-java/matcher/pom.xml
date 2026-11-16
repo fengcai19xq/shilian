@@ -20,7 +20,7 @@
   <properties>
     <java.version>17</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <poi.version>5.2.5</poi.version>
+    <poi.version>5.5.1</poi.version>
   </properties>
 
   <dependencies>

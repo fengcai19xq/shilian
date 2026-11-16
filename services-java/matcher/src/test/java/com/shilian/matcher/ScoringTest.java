@@ -152,6 +152,13 @@ class ScoringTest {
     }
 
     @Test
+    void formScore缺失时按元数据齐备度推导() {
+        CandidateDoc d = doc().formScore(0).build();
+        ScoredCandidate s = Scoring.scoreCandidate(makeItem(), d, new FakeDecideProvider(0.0), CFG);
+        assertThat(s.formScore()).isEqualTo(1.0);
+    }
+
+    @Test
     void decideProbabilityClamped() {
         ScoredCandidate s = Scoring.scoreCandidate(makeItem(), makeDoc(), new FakeDecideProvider(7.0), CFG);
         assertThat(s.pSatisfies()).isEqualTo(1.0);

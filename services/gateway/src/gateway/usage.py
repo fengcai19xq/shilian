@@ -7,8 +7,13 @@
 from __future__ import annotations
 
 import logging
+import os
+import sqlite3
+import threading
+from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .config import BudgetPolicy
@@ -48,6 +53,12 @@ class UsageRecord:
     completion_tokens: int = 0
     cost_cny: float = 0.0
     calls: int = 0
+
+
+def build_ledger_from_env() -> "UsageLedger | SqliteUsageLedger":
+    """默认内存账本；设置 GATEWAY_USAGE_DB_PATH 时落 SQLite，重启不丢预算统计。"""
+    path = os.environ.get("GATEWAY_USAGE_DB_PATH", "").strip()
+    return SqliteUsageLedger(path) if path else UsageLedger()
 
 
 class UsageLedger:
@@ -104,6 +115,131 @@ class UsageLedger:
     def snapshot(self, period: str | None = None) -> dict[UsageKey, UsageRecord]:
         target = period or current_period()
         return {k: v for k, v in self._records.items() if k.period == target}
+
+
+class SqliteUsageLedger:
+    """SQLite 账本：单文件、跨重启保留按周期/租户/部门/用途/模型的累计值。
+
+    生产多副本共享同一个数据库文件不现实，应换 PostgreSQL/Redis；但单机测试环境
+    与单进程部署下，它比内存账本更接近“预算真的不会因重启归零”。
+    """
+
+    _SCHEMA = """
+    CREATE TABLE IF NOT EXISTS usage (
+        period TEXT NOT NULL,
+        tenant TEXT NOT NULL DEFAULT '',
+        dept TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        model TEXT NOT NULL,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        cost_cny REAL NOT NULL DEFAULT 0,
+        calls INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (period, tenant, dept, purpose, model)
+    )
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        with closing(self._connect()) as conn:
+            conn.execute(self._SCHEMA)
+            conn.commit()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.path, timeout=10)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def record(
+        self,
+        dept: str,
+        purpose: Purpose,
+        model: str,
+        usage: Usage,
+        period: str | None = None,
+        tenant: str = "",
+    ) -> None:
+        key = (period or current_period(), tenant, dept, purpose.value, model)
+        with self._lock, closing(self._connect()) as conn:
+            conn.execute(
+                """
+                INSERT INTO usage
+                    (period, tenant, dept, purpose, model, prompt_tokens,
+                     completion_tokens, cost_cny, calls)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ON CONFLICT(period, tenant, dept, purpose, model) DO UPDATE SET
+                    prompt_tokens = prompt_tokens + excluded.prompt_tokens,
+                    completion_tokens = completion_tokens + excluded.completion_tokens,
+                    cost_cny = ROUND(cost_cny + excluded.cost_cny, 6),
+                    calls = calls + 1
+                """,
+                (*key, usage.prompt_tokens, usage.completion_tokens, usage.cost_cny),
+            )
+            conn.commit()
+
+    def get(
+        self,
+        dept: str,
+        purpose: Purpose,
+        model: str,
+        period: str | None = None,
+        tenant: str = "",
+    ) -> UsageRecord:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                """
+                SELECT prompt_tokens, completion_tokens, cost_cny, calls
+                FROM usage WHERE period=? AND tenant=? AND dept=? AND purpose=? AND model=?
+                """,
+                (period or current_period(), tenant, dept, purpose.value, model),
+            ).fetchone()
+        if row is None:
+            return UsageRecord()
+        return UsageRecord(
+            prompt_tokens=row["prompt_tokens"],
+            completion_tokens=row["completion_tokens"],
+            cost_cny=round(row["cost_cny"], 6),
+            calls=row["calls"],
+        )
+
+    def dept_total(self, dept: str, period: str | None = None, tenant: str | None = None) -> float:
+        target = period or current_period()
+        if tenant is None:
+            sql = "SELECT COALESCE(SUM(cost_cny), 0) AS total FROM usage WHERE period=? AND dept=?"
+            args: tuple = (target, dept)
+        else:
+            sql = (
+                "SELECT COALESCE(SUM(cost_cny), 0) AS total FROM usage "
+                "WHERE period=? AND dept=? AND tenant=?"
+            )
+            args = (target, dept, tenant)
+        with closing(self._connect()) as conn:
+            row = conn.execute(sql, args).fetchone()
+        return round(float(row["total"]), 6)
+
+    def snapshot(self, period: str | None = None) -> dict[UsageKey, UsageRecord]:
+        target = period or current_period()
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM usage WHERE period=?", (target,)
+            ).fetchall()
+        return {
+            UsageKey(
+                period=row["period"],
+                dept=row["dept"],
+                purpose=Purpose(row["purpose"]),
+                model=row["model"],
+                tenant=row["tenant"],
+            ): UsageRecord(
+                prompt_tokens=row["prompt_tokens"],
+                completion_tokens=row["completion_tokens"],
+                cost_cny=round(row["cost_cny"], 6),
+                calls=row["calls"],
+            )
+            for row in rows
+        }
 
 
 @dataclass

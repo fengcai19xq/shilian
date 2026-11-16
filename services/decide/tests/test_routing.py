@@ -46,6 +46,19 @@ def test_kb_empty_when_retrieval_unavailable(settings, principal):
     resp = _svc(settings, retrieval, FakeDecider(0.9)).route(_req(principal))
     assert resp.decision is RouteDecision.KB_EMPTY
     assert resp.confirm_required is True
+    assert "检索服务暂不可用" in resp.reason
+
+
+def test_retrieval_unavailable_never_general_even_with_low_probability(settings, principal):
+    """即使判定器认为「不需要内部资料」，检索故障也不能静默走通用模型。"""
+    decider = FakeDecider(0.0)
+    retrieval = FakeRetrieval(error=RuntimeError("retrieval down"))
+    resp = _svc(settings, retrieval, decider).route(_req(principal))
+
+    assert resp.decision is RouteDecision.KB_EMPTY
+    assert resp.confirm_required is True
+    assert resp.allow_general_fallback is False
+    assert decider.calls == []
 
 
 # ---------- general 路径出参不含 principal 与公司字段 ----------

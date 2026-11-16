@@ -242,6 +242,20 @@ class ApiTest {
     }
 
     @Test
+    void confirmRejectsDocOutsideCandidates() throws Exception {
+        JsonNode cl = upload(client);
+        String checklistId = cl.get("checklist_id").asText();
+        run(client, checklistId);
+        String itemId = cl.get("items").get(1).get("item_id").asText();
+
+        MockHttpServletResponse r = call(client, post("/matcher/items/" + itemId + "/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"doc_ids\": [\"d_outside\"]}".getBytes(StandardCharsets.UTF_8))
+                .header("X-User-Id", "u_reviewer"));
+        assertThat(r.getStatus()).isEqualTo(409);
+    }
+
+    @Test
     void confirmEmptyDocIdsMarksMissing() throws Exception {
         JsonNode cl = upload(client);
         run(client, cl.get("checklist_id").asText());

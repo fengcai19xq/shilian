@@ -23,15 +23,40 @@ def _xlsx(rows: list[list]) -> bytes:
     return buf.getvalue()
 
 
-def test_dictionary_has_15_to_20_types_with_aliases():
+def test_dictionary_has_60_plus_types_with_aliases():
     d = TypeDictionary.load()
-    assert 15 <= len(d._std_names) <= 20
+    assert len(d._std_names) >= 60
     assert d.resolve("经审计财务报表").std_type == "AUDIT_REPORT"
 
 
 def test_dictionary_miss_is_unknown_not_guess():
-    hit = TypeDictionary.load().resolve("环评批复文件")
+    hit = TypeDictionary.load().resolve("一个完全不存在的资料类型xyz")
     assert hit.std_type == UNKNOWN_TYPE and hit.status == "unknown" and hit.std_name is None
+
+
+def test_dictionary_required_attributes_loaded():
+    d = TypeDictionary.load()
+    hit = d.resolve("审计报告")
+    assert hit.std_type == "AUDIT_REPORT"
+    assert hit.required_attributes is not None
+    assert hit.required_attributes["period"] is True
+    assert hit.required_attributes["scope"] is True
+    assert hit.required_attributes["stamped"] is True
+
+
+def test_dictionary_required_attributes_none_for_unknown():
+    d = TypeDictionary.load()
+    hit = d.resolve("一个完全不存在的资料类型xyz")
+    assert hit.required_attributes is None
+
+
+def test_dictionary_required_attributes_query():
+    d = TypeDictionary.load()
+    req = d.required_attributes("BUSINESS_LICENSE")
+    assert req is not None
+    assert req["period"] is False  # 营业执照不需要期间
+    assert req["copies"] is True   # 需要份数
+    assert d.required_attributes("UNKNOWN") is None
 
 
 def test_longest_alias_wins():
@@ -63,7 +88,7 @@ def test_parse_excel_common_headers():
         ["3.1", "最近三年审计报告", "合并口径，加盖公章，3份"],
         ["6.3", "公司章程", None],
         [None, None, None],
-        ["7.1", "环评批复文件", "复印件"],
+        ["7.1", "一个完全不存在的资料xyz", "复印件"],
     ])
     cl = ChecklistParser(ParserConfig(reference_year=2023)).parse(content, filename="清单.xlsx")
     assert [i.no for i in cl.items] == ["3.1", "6.3", "7.1"]

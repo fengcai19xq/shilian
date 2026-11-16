@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from conftest import UNAUTHORIZED_DOC_NAMES, FakeRagflowClient
 
-from retrieval_proxy.audit import InMemoryAuditSink
+from retrieval_proxy.adapters import RagflowBackend
+from retrieval_proxy.audit import AuditEvent, InMemoryAuditSink, JsonlAuditSink
+from retrieval_proxy.backends import BackendError, BackendQuery
 from retrieval_proxy.models import Principal, SearchRequest
 from retrieval_proxy.service import RetrievalService
 
@@ -125,4 +128,94 @@ def test_每次检索写一条审计事件(principal_l3: Principal, audit: InMem
     assert first.scope == ["kb_finance", "kb_audit"]
     assert first.hit_doc_ids == ["d_1", "d_2"]
     assert first.ts is not None
+    assert first.tenant == "default"
     assert audit.events[1].mode == "probe"
+
+
+def test_审计事件带租户维度(audit: InMemoryAuditSink) -> None:
+    principal = Principal(
+        user_id="u_t", dept=["融资部"], max_sensitivity="L2", tenant="t_acme"
+    )
+    RetrievalService(FakeRagflowClient(), audit).search(_request(principal))
+    assert audit.events[0].tenant == "t_acme"
+
+
+class _QueryClient:
+    """RagflowClient 桩：只记录是否被调用。"""
+
+    def __init__(self) -> None:
+        self.called = False
+
+    def retrieve(self, query):  # noqa: ANN001 - 测试桩
+        self.called = True
+        return []
+
+
+def test_ragflow后端对非默认租户fail_closed(audit: InMemoryAuditSink) -> None:
+    client = _QueryClient()
+    backend = RagflowBackend(client)
+    query = BackendQuery(
+        question="q",
+        kb_scope=["kb"],
+        top_k=3,
+        similarity_threshold=0.35,
+        rerank=False,
+        principal=Principal(
+            user_id="u_t", dept=["融资部"], max_sensitivity="L2", tenant="t_acme"
+        ),
+    )
+    with pytest.raises(BackendError):
+        backend.retrieve(query)
+    assert client.called is False
+
+
+def test_ragflow后端默认租户正常放行() -> None:
+    client = _QueryClient()
+    backend = RagflowBackend(client)
+    query = BackendQuery(
+        question="q",
+        kb_scope=["kb"],
+        top_k=3,
+        similarity_threshold=0.35,
+        rerank=False,
+        principal=Principal(user_id="u_1", dept=["融资部"], max_sensitivity="L2"),
+    )
+    assert backend.retrieve(query) == []
+    assert client.called is True
+
+
+def test_jsonl审计追加写入且保留租户(tmp_path) -> None:
+    path = tmp_path / "audit.jsonl"
+    sink = JsonlAuditSink(path)
+    sink.write(
+        AuditEvent(
+            who="u_1",
+            query="q",
+            scope=["kb"],
+            hit_doc_ids=[],
+            tenant="t_acme",
+        )
+    )
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    payload = json.loads(lines[0])
+    assert payload["tenant"] == "t_acme"
+    assert payload["who"] == "u_1"
+    # 审计文件只允许属主读写
+    assert (path.stat().st_mode & 0o077) == 0
+
+
+class _ErrorBackend:
+    def retrieve(self, query):  # noqa: ANN001 - 测试桩
+        raise RuntimeError("backend down")
+
+
+def test_检索失败也写审计且不记录越权文档(
+    principal_l3: Principal, audit: InMemoryAuditSink
+) -> None:
+    with pytest.raises(RuntimeError):
+        RetrievalService(_ErrorBackend(), audit).search(_request(principal_l3))
+    assert len(audit.events) == 1
+    assert audit.events[0].outcome == "error"
+    assert audit.events[0].hit_doc_ids == []
+    assert audit.events[0].tenant == "default"

@@ -40,14 +40,24 @@ public class HttpCandidateProvider implements CandidateProvider {
     private final List<String> kbScope;
     private final int topK;
     private final double scoreThreshold;
+    private final IngestRegistryClient registryClient;
 
+    /**
+     * 兼容旧装配：不接登记富化。成册闭环本阶段不实现，保留该构造器让既有测试与
+     * 未接入 ingest 的部署继续可用；生产接线时显式传 registryClient。
+     */
     public HttpCandidateProvider(String baseUrl, List<String> kbScope, int topK, double scoreThreshold) {
-        this(baseUrl, kbScope, topK, scoreThreshold,
+        this(baseUrl, kbScope, topK, scoreThreshold, null);
+    }
+
+    public HttpCandidateProvider(String baseUrl, List<String> kbScope, int topK, double scoreThreshold,
+            IngestRegistryClient registryClient) {
+        this(baseUrl, kbScope, topK, scoreThreshold, registryClient,
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build());
     }
 
     public HttpCandidateProvider(String baseUrl, List<String> kbScope, int topK, double scoreThreshold,
-            HttpClient http) {
+            IngestRegistryClient registryClient, HttpClient http) {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("retrieval.base-url 不能为空");
         }
@@ -57,6 +67,7 @@ public class HttpCandidateProvider implements CandidateProvider {
         this.kbScope = kbScope == null ? List.of() : List.copyOf(kbScope);
         this.topK = topK <= 0 ? 8 : topK;
         this.scoreThreshold = scoreThreshold <= 0 ? 0.35 : scoreThreshold;
+        this.registryClient = registryClient;
         this.http = http;
     }
 
@@ -75,9 +86,35 @@ public class HttpCandidateProvider implements CandidateProvider {
         JsonNode resp = search(buildRequest(item, principal));
         List<CandidateDoc> out = new ArrayList<>();
         for (JsonNode hit : resp.path("hits")) {
-            out.add(toCandidate(hit));
+            out.add(enrichCandidate(toCandidate(hit)));
         }
         return out;
+    }
+
+    /**
+     * 用 ingest 登记信息富化候选文档（WK18）。
+     * 富化失败时保留检索结果，但 stdType 保持 UNKNOWN_TYPE。
+     */
+    private CandidateDoc enrichCandidate(CandidateDoc candidate) {
+        if (registryClient == null) {
+            return candidate;
+        }
+        return registryClient.enrich(candidate.docId())
+                .map(registry -> new CandidateDoc(
+                        candidate.docId(),
+                        candidate.docName(),
+                        // 优先用登记里的原始文件 URI；没有则保留检索结果
+                        registry.uri().isBlank() ? candidate.uri() : registry.uri(),
+                        registry.stdType(),
+                        registry.period(),
+                        registry.scope(),
+                        registry.copies(),
+                        registry.stamped(),
+                        // 召回分/页码来自检索，不能被登记富化覆盖
+                        candidate.pages(),
+                        candidate.recallScore(),
+                        candidate.formScore()))
+                .orElse(candidate); // 富化失败保留原候选
     }
 
     // ---- 请求构造 ----

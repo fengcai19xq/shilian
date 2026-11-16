@@ -1,4 +1,4 @@
-# 通用 Python 薄层服务镜像；build-arg SERVICE=retrieval-proxy|decide|gateway，MODULE=包名
+# 通用 Python 薄层服务镜像；build-arg SERVICE=retrieval-proxy|decide|gateway|bff，MODULE=包名
 FROM python:3.11-slim
 ARG SERVICE
 ARG MODULE

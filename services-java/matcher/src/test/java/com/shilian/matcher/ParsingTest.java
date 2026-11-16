@@ -47,18 +47,44 @@ class ParsingTest {
     }
 
     @Test
-    void dictionaryHas15To20TypesWithAliases() {
+    void dictionaryHas60PlusTypesWithAliases() {
         TypeDictionary d = TypeDictionary.loadDefault();
-        assertThat(d.size()).isBetween(15, 20);
+        assertThat(d.size()).isGreaterThanOrEqualTo(60);
         assertThat(d.resolve("经审计财务报表").stdType()).isEqualTo("AUDIT_REPORT");
     }
 
     @Test
     void dictionaryMissIsUnknownNotGuess() {
-        TypeDictionary.TypeHit hit = TypeDictionary.loadDefault().resolve("环评批复文件");
+        TypeDictionary.TypeHit hit = TypeDictionary.loadDefault().resolve("一个完全不存在的资料类型xyz");
         assertThat(hit.stdType()).isEqualTo(TypeStatus.UNKNOWN_TYPE);
         assertThat(hit.status()).isEqualTo("unknown");
         assertThat(hit.stdName()).isNull();
+    }
+
+    @Test
+    void dictionaryRequiredAttributesLoaded() {
+        TypeDictionary.TypeHit hit = TypeDictionary.loadDefault().resolve("审计报告");
+        assertThat(hit.stdType()).isEqualTo("AUDIT_REPORT");
+        assertThat(hit.requiredAttributes()).isNotNull();
+        assertThat(hit.requiredAttributes().get("period")).isTrue();
+        assertThat(hit.requiredAttributes().get("scope")).isTrue();
+        assertThat(hit.requiredAttributes().get("stamped")).isTrue();
+    }
+
+    @Test
+    void dictionaryRequiredAttributesNoneForUnknown() {
+        TypeDictionary.TypeHit hit = TypeDictionary.loadDefault().resolve("一个完全不存在的资料xyz");
+        assertThat(hit.requiredAttributes()).isNull();
+    }
+
+    @Test
+    void dictionaryRequiredAttributesQuery() {
+        TypeDictionary d = TypeDictionary.loadDefault();
+        Map<String, Boolean> req = d.requiredAttributes("BUSINESS_LICENSE");
+        assertThat(req).isNotNull();
+        assertThat(req.get("period")).isFalse();
+        assertThat(req.get("copies")).isTrue();
+        assertThat(d.requiredAttributes("UNKNOWN")).isNull();
     }
 
     @Test
@@ -97,7 +123,7 @@ class ParsingTest {
                 row("3.1", "最近三年审计报告", "合并口径，加盖公章，3份"),
                 row("6.3", "公司章程", null),
                 row(null, null, null),
-                row("7.1", "环评批复文件", "复印件")));
+                row("7.1", "一个完全不存在的资料xyz", "复印件")));
         Checklist cl = new ChecklistParser(ParserConfig.withReferenceYear(2023)).parse(content, "清单.xlsx", "");
         assertThat(cl.items()).extracting(ChecklistItem::no).containsExactly("3.1", "6.3", "7.1");
         ChecklistItem first = cl.items().get(0);

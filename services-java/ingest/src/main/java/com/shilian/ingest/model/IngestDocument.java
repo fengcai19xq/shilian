@@ -25,6 +25,8 @@ public class IngestDocument {
     private final Boolean stamped;
     /** 资料类型（可选，缺省 null 不猜；WK18 登记富化，方案甲人工传 + 方案乙词典兜底）。 */
     private final String stdType;
+    /** 原始文件 URI（可选；未配置原始文件存储时为 null）。 */
+    private final String storageUri;
 
     private DocStatus status = DocStatus.UPLOADED;
     private String reason;
@@ -38,20 +40,28 @@ public class IngestDocument {
             String dept, Sensitivity sensitivity, String project, String period, String scope,
             String uploadedBy, Instant createdAt) {
         this(docId, title, fileName, fileType, sizeBytes, dept, sensitivity, project, period, scope,
-                uploadedBy, createdAt, "default", null, null, null);
+                uploadedBy, createdAt, "default", null, null, null, null);
     }
 
     public IngestDocument(String docId, String title, String fileName, String fileType, long sizeBytes,
             String dept, Sensitivity sensitivity, String project, String period, String scope,
             String uploadedBy, Instant createdAt, String tenant) {
         this(docId, title, fileName, fileType, sizeBytes, dept, sensitivity, project, period, scope,
-                uploadedBy, createdAt, tenant, null, null, null);
+                uploadedBy, createdAt, tenant, null, null, null, null);
     }
 
     public IngestDocument(String docId, String title, String fileName, String fileType, long sizeBytes,
             String dept, Sensitivity sensitivity, String project, String period, String scope,
             String uploadedBy, Instant createdAt, String tenant,
             Integer copies, Boolean stamped, String stdType) {
+        this(docId, title, fileName, fileType, sizeBytes, dept, sensitivity, project, period, scope,
+                uploadedBy, createdAt, tenant, copies, stamped, stdType, null);
+    }
+
+    public IngestDocument(String docId, String title, String fileName, String fileType, long sizeBytes,
+            String dept, Sensitivity sensitivity, String project, String period, String scope,
+            String uploadedBy, Instant createdAt, String tenant,
+            Integer copies, Boolean stamped, String stdType, String storageUri) {
         this.docId = docId;
         this.title = title;
         this.fileName = fileName;
@@ -68,12 +78,13 @@ public class IngestDocument {
         this.copies = copies;
         this.stamped = stamped;
         this.stdType = stdType;
+        this.storageUri = storageUri;
         this.updatedAt = createdAt;
     }
 
     public synchronized IngestDocument copy() {
         IngestDocument c = new IngestDocument(docId, title, fileName, fileType, sizeBytes, dept, sensitivity,
-                project, period, scope, uploadedBy, createdAt, tenant, copies, stamped, stdType);
+                project, period, scope, uploadedBy, createdAt, tenant, copies, stamped, stdType, storageUri);
         c.status = status;
         c.reason = reason;
         c.pageCount = pageCount;
@@ -100,6 +111,7 @@ public class IngestDocument {
     public Integer getCopies() { return copies; }
     public Boolean getStamped() { return stamped; }
     public String getStdType() { return stdType; }
+    public String getStorageUri() { return storageUri; }
     public synchronized DocStatus getStatus() { return status; }
     public synchronized String getReason() { return reason; }
     public synchronized int getPageCount() { return pageCount; }

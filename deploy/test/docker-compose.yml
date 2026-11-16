@@ -15,6 +15,10 @@ services:
       WEKNORA_BASE_URL: ${WEKNORA_BASE_URL:-}
       WEKNORA_API_KEY: ${WEKNORA_API_KEY:-}
       WEKNORA_TENANT_ID: ${WEKNORA_TENANT_ID:-}
+      WEKNORA_CACHE_TTL_SECONDS: ${WEKNORA_CACHE_TTL_SECONDS:-60}
+      AUDIT_LOG_PATH: ${AUDIT_LOG_PATH:-/var/audit/retrieval.jsonl}
+    volumes:
+      - ./audit:/var/audit
     # 不加外部网络：WeKnora 与本机同宿主机时，WEKNORA_BASE_URL 填宿主可达地址即可
     networks: [hangli, ragflow]
     restart: unless-stopped
@@ -43,8 +47,15 @@ services:
       GATEWAY_DEEPSEEK_ENTERPRISE_API_KEY: ${GATEWAY_DEEPSEEK_ENTERPRISE_API_KEY:-}
       GATEWAY_QWEN_ENTERPRISE_API_KEY: ${GATEWAY_QWEN_ENTERPRISE_API_KEY:-}
       GATEWAY_VPC_API_KEY: ${GATEWAY_VPC_API_KEY:-}
+      GATEWAY_USAGE_DB_PATH: ${GATEWAY_USAGE_DB_PATH:-/var/usage/gateway.sqlite}
+      # T16 审计事件流：append-only JSONL
+      GATEWAY_AUDIT_LOG_PATH: ${GATEWAY_AUDIT_LOG_PATH:-/var/audit/gateway.jsonl}
+      # MCP Server 端点（WK15）：默认关闭，配置 MCP_ENDPOINTS 后挂载路由
+      MCP_ENDPOINTS: ${MCP_ENDPOINTS:-}
+      MCP_RETRIEVAL_URL: http://retrieval-proxy:8000
     volumes:
       - ./gateway-routing.yaml:/conf/routing.yaml:ro
+      - ./usage:/var/usage
     networks: [hangli]
     restart: unless-stopped
 
@@ -68,20 +79,108 @@ services:
       SPRING_CONFIG_ADDITIONAL_LOCATION: /conf/
       SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 200MB
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 200MB
+      INGEST_STORE_PATH: ${INGEST_STORE_PATH:-/var/ingest/documents.json}
+      INGEST_FILE_STORE_PATH: ${INGEST_FILE_STORE_PATH:-/var/filestore}
     volumes:
       - ./ingest-application.yml:/conf/application.yml:ro
+      - ./ingest-data:/var/ingest
+      - ./filestore:/var/filestore
     networks: [hangli, ragflow]
+    restart: unless-stopped
+
+  # 清单匹配 / 成册执行器：内部服务，不经 nginx 暴露；由 BFF 代理
+  matcher:
+    build:
+      context: ../..
+      dockerfile: deploy/test/java-service.Dockerfile
+      args: { SERVICE: matcher }
+    environment:
+      SERVER_PORT: 8010
+      MATCHER_STORE_PATH: ${MATCHER_STORE_PATH:-/var/matcher/store.json}
+      MATCHER_ENRICHMENT_ENABLED: ${MATCHER_ENRICHMENT_ENABLED:-true}
+      MATCHER_DECIDE_BACKEND: ${MATCHER_DECIDE_BACKEND:-lexical}
+      RETRIEVAL_URL: http://retrieval-proxy:8000
+      RETRIEVAL_KB_SCOPE: ${BFF_KB_SCOPE:-kb_finance,kb_audit}
+      INGEST_URL: http://ingest:8030
+    volumes:
+      - ./matcher-data:/var/matcher
+    depends_on: [retrieval-proxy, ingest]
+    networks: [hangli]
+    restart: unless-stopped
+
+  packager:
+    build:
+      context: ../..
+      dockerfile: deploy/test/java-service.Dockerfile
+      args: { SERVICE: packager }
+    environment:
+      SERVER_PORT: 8080
+      PACKAGER_STORAGE_TYPE: ${PACKAGER_STORAGE_TYPE:-local}
+      PACKAGER_STORAGE_ROOT: ${PACKAGER_STORAGE_ROOT:-/var/filestore}
+      PACKAGER_STORAGE_OUT_DIR: ${PACKAGER_STORAGE_OUT_DIR:-/var/packages}
+    volumes:
+      - ./filestore:/var/filestore:ro
+      - ./packages:/var/packages
+    networks: [hangli]
+    restart: unless-stopped
+
+  # 统一身份：生产从 OIDC IdP 验签后返回 principal；测试环境未配置 OIDC 时
+  # 只接受外部网关注入的 X-User-Id（测试环境可置 BFF_DEV_MODE=true，不调用此服务）
+  wecom-sync:
+    build:
+      context: ../..
+      dockerfile: deploy/test/java-service.Dockerfile
+      args: { SERVICE: wecom-sync }
+    environment:
+      WECOM_SYNC_PORT: 8020
+      IDENTITY_DEFAULT_MAX_SENSITIVITY: ${IDENTITY_DEFAULT_MAX_SENSITIVITY:-L2}
+      IDENTITY_REQUIRE_ADMIN_TOKEN: ${IDENTITY_REQUIRE_ADMIN_TOKEN:-true}
+      IDENTITY_ADMIN_TOKEN: ${IDENTITY_ADMIN_TOKEN:-}
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_ALGORITHM: ${OIDC_ALGORITHM:-HS256}
+      OIDC_HMAC_SECRET: ${OIDC_HMAC_SECRET:-}
+      OIDC_PUBLIC_KEY_PEM: ${OIDC_PUBLIC_KEY_PEM:-}
+    networks: [hangli]
+    restart: unless-stopped
+
+  # 浏览器唯一入口：会话 -> principal、权限字段剥离、下游代理
+  bff:
+    build:
+      context: ../..
+      dockerfile: deploy/test/python-service.Dockerfile
+      args: { SERVICE: bff, MODULE: "bff.app:app" }
+    environment:
+      BFF_IDENTITY_URL: http://wecom-sync:8020
+      BFF_RETRIEVAL_URL: http://retrieval-proxy:8000
+      BFF_DECIDE_URL: http://decide:8000
+      BFF_GATEWAY_URL: http://gateway:8000
+      BFF_INGEST_URL: http://ingest:8030
+      BFF_MATCHER_URL: http://matcher:8010
+      BFF_PACKAGER_URL: http://packager:8080
+      # 生产置 false，并把身份服务接入；测试环境用服务端固定主体跑通链路
+      BFF_DEV_MODE: ${BFF_DEV_MODE:-false}
+      BFF_DEV_PRINCIPAL: '${BFF_DEV_PRINCIPAL:-{"user_id":"u_fin","dept":["融资部"],"roles":["it_admin"],"max_sensitivity":"L2","projects":[]}}'
+      # 由 BFF 决定检索范围，浏览器不能自行扩大 kb_scope
+      BFF_SESSION_COOKIE: ${BFF_SESSION_COOKIE:-shilian_id_token}
+      BFF_ADMIN_ROLES: ${BFF_ADMIN_ROLES:-admin,it_admin}
+      BFF_KB_SCOPE: ${BFF_KB_SCOPE:-kb_finance,kb_audit}
+      BFF_INTERNAL_TOKEN: ${BFF_INTERNAL_TOKEN:-}
+      BFF_TIMEOUT_SECONDS: ${BFF_TIMEOUT_SECONDS:-60}
+      BFF_CONTEXT_SECRET: ${BFF_CONTEXT_SECRET:-}
+      BFF_CONTEXT_COOKIE_SECURE: ${BFF_CONTEXT_COOKIE_SECURE:-false}
+    depends_on: [retrieval-proxy, decide, gateway, ingest, matcher, packager, wecom-sync]
+    networks: [hangli]
     restart: unless-stopped
 
   web:
     build:
       context: ../..
       dockerfile: deploy/test/web/Dockerfile
-      args:
-        VITE_DEV_PRINCIPAL: ${WEB_DEV_PRINCIPAL:-{"user_id":"u_fin","name":"融资部测试员","dept":["融资部"],"roles":[],"max_sensitivity":"L2","projects":[]}}
     ports:
       - "${WEB_PORT:-8088}:80"
-    depends_on: [decide, retrieval-proxy, gateway, ingest]
+    depends_on: [bff]
     networks: [hangli]
     restart: unless-stopped
 

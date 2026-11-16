@@ -30,6 +30,7 @@ mvn spring-boot:run         # 启动 HTTP 服务（默认 8080）
 | `checklist_xlsx` | 编号 / 清单项 / 对应文件（zip 内路径）/ 页码（合订本页码区间）/ 状态 / 责任部门 / 备注；缺失标红、待确认标黄 |
 
 - **存储抽象**：`Storage`（`read` / `write` / `signedUrl`）；`LocalStorage`（沙箱临时目录，防目录穿越）、`InMemoryStorage`（内存 fake）、`ObjectStorage`（生产对象存储桩）。配置 `packager.storage.type=local|memory`
+- **源文件 URI**：ingest 返回 `local://docs/{doc_id}/{file}`；compose 中 `PACKAGER_STORAGE_ROOT=/var/filestore` 与 ingest 的 `INGEST_FILE_STORE_PATH` 挂同一个卷，`LocalStorage` 会剥掉 scheme 后在该根目录读取。产物写到 `PACKAGER_STORAGE_OUT_DIR`
 - **缺失项**：`missing` 条目不读取源文件、不入 zip 与合订本，只出现在核对表并整行标红，责任部门取 `owner_dept`，未给出时填「待指派」
 - **重放字节一致**（zip / pdf / xlsx 三者都是）：zip 用 commons-compress 写，成员固定 DOS 时间 1980-01-01 00:00:00（写完直接改写头部字段，避开时区换算）、固定压缩级别、按 manifest 顺序；PDF 固定 Producer/Creator、不写日期、trailer `/ID` 由 package_id 派生；xlsx 文档属性时间固定，并把 POI 生成的容器按同规则重打包。与运行时区无关
 - **字体**：西文 DejaVu Sans + 中文 Droid Sans Fallback，随包内置并子集嵌入，见 `src/main/resources/fonts/README.md`

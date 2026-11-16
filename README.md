@@ -2,12 +2,13 @@
 
 企业级知识智能体：多部门文档统一入库、按权限问答与溯源、融资清单自动成册、企微与 PC 双端。
 
-底座为 **Dify（编排）+ RAGFlow（知识加工与检索）**，模型层为 **大模型生成 + Jev 决策** 双层。
+底座为 **Weknora**，模型层为 **大模型生成 + Jev 决策** 双层。
 
 ## 目录
 
 ```text
 contracts/                 跨模块接口契约（唯一约定来源，改动需评审）
+services/bff/              浏览器唯一入口：会话 → principal、权限字段剥离
 services/retrieval-proxy/  权限过滤与检索转发
 services/matcher/          清单解析与三态匹配
 services/packager/         成册执行器（纯函数，沙箱内运行）

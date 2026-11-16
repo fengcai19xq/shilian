@@ -23,3 +23,17 @@ spike/weknora/wait_doc.py
 spike/weknora/del_model.py
 spike/weknora/final_fix.py
 spike/weknora/mvp_phase2.py
+
+# 本地测试环境审计日志，不入库
+deploy/test/audit/
+
+# 本地测试环境预算账本，不入库
+deploy/test/usage/
+
+# 本地测试环境文档登记快照，不入库
+deploy/test/ingest-data/
+
+# 本地测试环境原始文件与成册产物，不入库
+deploy/test/filestore/
+deploy/test/packages/
+deploy/test/matcher-data/

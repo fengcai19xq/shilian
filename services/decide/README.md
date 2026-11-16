@@ -30,7 +30,7 @@
 ```
 
 路由顺序：显式选择 → 企业实体命中 → `mode=probe`（top_k=3）探测最高分 ≥ 阈值 → `decide()` 判定。
-判定「需要内部资料」但未检索到时返回 `kb_empty` + `confirm_required=true`，**绝不自动转通用模型**；
+判定「需要内部资料」但未检索到时返回 `kb_empty` + `confirm_required=true`，**绝不自动转通用模型**；检索服务不可用时同样返回 `kb_empty`（reason 明确写「检索服务暂不可用」）并保持 `confirm_required=true`，不能把故障当成「未命中」静默走通用模型；
 `general` 返回体会剥掉命中实体与检索范围等公司信息。
 
 ## 如何本地跑

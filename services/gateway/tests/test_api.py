@@ -13,7 +13,7 @@ def _body(**overrides):
         "purpose": "generate",
         "sensitivity": "L3",
         "preferred_model": "deepseek-v3",
-        "principal": {"user_id": "u_10231", "dept": ["融资部"]},
+        "principal": {"user_id": "u_10231", "dept": ["融资部"], "max_sensitivity": "L4"},
         "payload": {"prompt": "示例客户甲的报价是多少"},
     }
     body.update(overrides)
@@ -33,11 +33,16 @@ def test_invoke_返回体符合契约(service, factory):
 
 
 def test_generate_正文在顶层text且与output一致(service):
-    """契约要求 generate 的答案在顶层 text；output 保留供老调用方读取，两者须一致。"""
+    """契约要求 generate 的答案在顶层 text；output 保留供老调用方读取，两者须一致。
+
+    T16 后顶层 text 包含外发水印（零宽字符），output["text"] 保持原始内容；
+    比较时需 strip 水印。
+    """
+    from gateway.watermark import strip_watermark
     client = TestClient(create_app(service))
     data = client.post("/v1/invoke", json=_body()).json()
     assert isinstance(data["text"], str) and data["text"]
-    assert data["text"] == data["output"]["text"]
+    assert strip_watermark(data["text"]) == data["output"]["text"]
 
 
 def test_非法密级返回422(service):

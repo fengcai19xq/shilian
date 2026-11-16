@@ -68,6 +68,19 @@ class RoutingService:
         probe = self._probe(question, request)
         threshold = self._settings.probe_score_threshold
         top_score = probe.top_score
+        if not probe.available:
+            # 检索不可用 != 库里没有。此时不能调用判定后静默走通用模型，
+            # 必须如实告知并让用户决定是否显式改用通用模型。
+            return RouteResponse(
+                decision=RouteDecision.KB_EMPTY,
+                reason=(
+                    "检索服务暂不可用，无法确认你的权限范围内是否有相关资料。"
+                    "请稍后重试，或显式选择通用模型回答（回答将不包含公司资料）。"
+                ),
+                evidence=RouteEvidence(source="probe", probe_total=0, probe_threshold=threshold),
+                confirm_required=True,
+                allow_general_fallback=False,
+            )
         if top_score is not None and top_score >= threshold:
             return RouteResponse(
                 decision=RouteDecision.ENTERPRISE,
@@ -119,8 +132,8 @@ class RoutingService:
                 score_threshold=self._settings.probe_score_threshold,
             )
         except Exception:  # noqa: BLE001
-            # 检索不可用时按「未命中」处理，后续判定决定是 kb_empty 还是 general
-            return ProbeResult(top_score=None, total=0, scope_desc=None)
+            # 标记为不可用；调用方必须 fail-closed，不能把它当成「未命中」。
+            return ProbeResult(top_score=None, total=0, scope_desc=None, available=False)
 
 
 def _log_verdict(verdict: DecideResult, request: RouteRequest) -> None:

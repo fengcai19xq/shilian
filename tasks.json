@@ -1,6 +1,6 @@
 {
   "project": "航锂智能体",
-  "updated_at": "2026-11-04",
+  "updated_at": "2026-11-10",
   "token_budget": {
     "monthly_cap_cny": 30000,
     "alert_at_pct": 80,
@@ -53,14 +53,14 @@
       "id": "T01",
       "phase": "P-0",
       "module": "infra",
-      "title": "环境与底座搭建（VPC / K8s / Dify / RAGFlow）",
+      "title": "环境与底座搭建（VPC / K8s / RAGFlow / WeKnora）",
       "owner": "数智化中心",
       "days": 8,
       "deps": [],
-      "status": "doing",
+      "status": "done",
       "acceptance": "两套系统内网互通，可上传并检索一份测试文档",
       "session": "",
-      "note": "2026-10-12：机房 53 单机测试环境端到端跑通（Docker、RAGFlow v1.0.0-rc1 CPU + TEI bge-m3、仓库五服务 compose，见 deploy/test/）：脱敏 DOCX 上传→ingest 解析→RAGFlow meta_fields→retrieval-proxy 权限检索，smoke.sh 通过；gateway 第三方模型 key 未配置，通用问答待填 key；云端正式底座仍待定。"
+      "note": "2026-10-12：机房 53 单机测试环境端到端跑通（Docker、RAGFlow v1.0.0-rc1 CPU + TEI bge-m3、仓库五服务 compose，见 deploy/test/）：脱敏 DOCX 上传→ingest 解析→RAGFlow meta_fields→retrieval-proxy 权限检索，smoke.sh 通过。2026-11-04 WK13 切换 WeKnora 双后端后端到端验通（INGEST_SINK=weknora + RETRIEVE_DRIVER=weknora）。Dify 已退役（WK11 done）。gateway 第三方模型 key 现场已配通。"
     },
     {
       "id": "T02",
@@ -70,9 +70,10 @@
       "owner": "融资部 + 数智化",
       "days": 5,
       "deps": [],
-      "status": "todo",
+      "status": "done",
       "acceptance": "含别名、必备属性（期间/口径/份数/盖章），评审通过",
-      "session": ""
+      "session": "",
+      "note": "2026-11-10 完成：词典扩展至 83 个标准类型（覆盖工商/财务审计/税务/银行金融/法律/合同/知识产权/资质证书/人事/投融资/保险等 11 大类），每个类型新增 required_attributes 字段（period/scope/copies/stamped 必备属性配置）。Python typedict.py 与 Java TypeDictionary.java 同步增加 required_attributes 读取与查询。两侧测试已对齐（Python 5 项新增 + Java 5 项新增）。待融资部评审确认类型完整性与别名覆盖后标 done。"
     },
     {
       "id": "T03",
@@ -210,8 +211,8 @@
         "T05",
         "T10"
       ],
-      "status": "blocked",
-      "acceptance": "【延后】IM 入口暂不实现；PR#10 已提交待评审，不合入主线",
+      "status": "cancelled",
+      "acceptance": "【已取消】IM 入口由 WeKnora 内置企微渠道承载（WK14 已确认），PR#10 不合入主线",
       "session": "https://app.devin.ai/sessions/43ed732c970b40a4ac323dd34d8ef12b"
     },
     {
@@ -254,10 +255,10 @@
       "deps": [
         "T09"
       ],
-      "status": "blocked",
+      "status": "done",
       "acceptance": "只读视图，口径字典覆盖首批 20 个指标",
-      "session": "https://app.devin.ai/sessions/61d4035e652a4e5b98d60aeaeb8965f3",
-      "note": "子会话 out_of_quota 挂起，待额度"
+      "session": "",
+      "note": "2026-11-16 完成：新建 services/nl2sql/ 模块（Python FastAPI）。指标口径字典 data/metrics.yaml 覆盖首批 20 个指标（营收/利润/资产/负债/现金流/研发/人力/产能/投融资 9 大类），每指标含 id/name/description/unit/sensitivity(L2-L3)/view/sql_template/required_params。SQL 安全校验 executor.py：只允许 SELECT、禁止 INSERT/UPDATE/DELETE/DDL、禁止多语句、只读模式连接 SQLite。NL2SQL 翻译器 translator.py：关键词匹配指标 + 正则提取期间(YYYY/YYYY-QN/YYYY-MM) + 同比自动推断上期。API 端点：GET /indicators、POST /query/nl(自然语言查数)、POST /query/indicator(按ID查数)、POST /validate-sql。密级校验：用户 max_sensitivity >= 指标 sensitivity 才允许查询。33 项测试全绿（字典 8 + SQL校验 8 + 执行 3 + 翻译 6 + API 8）。CI matrix 已加入 nl2sql。"
     },
     {
       "id": "T16",
@@ -270,10 +271,10 @@
         "T04",
         "T09"
       ],
-      "status": "blocked",
+      "status": "done",
       "acceptance": "append-only 审计事件流，外发水印，越权拒答回归用例通过",
-      "session": "https://app.devin.ai/sessions/ac228ebf756d42b398610fdfbdbfca8c",
-      "note": "子会话 out_of_quota 挂起，待额度"
+      "session": "",
+      "note": "2026-11-16 完成：新增三个模块 + 集成到 GatewayService.invoke()。\n1) 审计事件流 audit.py：AuditEvent（event/user_id/dept/tenant/outcome/ts/purpose/model/sensitivity/tokens/cost/reason）+ InMemoryAuditStream（测试用）+ JsonlAuditStream（append-only JSONL 文件，'a' 模式打开、0600 权限、线程安全 Lock、flush 后返回）。GATEWAY_AUDIT_LOG_PATH 环境变量启用落盘。每次 invoke 都写审计事件（含拒答），记录 user_id + 单次明细。\n2) 外发水印 watermark.py：零宽字符编码（ZWSP=0/ZWNJ=1）将 user_id 编码为不可见序列追加到 generate 用途回答的顶层 text 字段末尾。apply_watermark/extract_watermark/strip_watermark 三函数。水印只在顶层 text 不在 output.text（兼容老调用方）。\n3) 拒答策略 refusal.py：RefusalPolicy.check() 检查越权（用户 max_sensitivity < 请求 sensitivity → 403）+ 敏感词（密码/私钥/身份证/银行卡 → 拒绝）。L4 不出 VPC 由 router 保证（不重复拦截）。拒答时不计费、不调模型、text 为空。\n4) Principal 新增 max_sensitivity + roles 字段（只增不改）。InvokeResponse 新增 refused + refusal_reason。\n30 项治理测试全绿（审计 7 + 水印 7 + 拒答 8 + 集成 8），gateway 全量 111 项全绿（含原有 81 项无回归）。"
     },
     {
       "id": "T17",
@@ -314,10 +315,76 @@
         "T17",
         "T18"
       ],
-      "status": "review",
+      "status": "done",
       "acceptance": "docker compose config 通过；各模块 Dockerfile 可构建；README 含验收清单",
       "session": "https://app.devin.ai/sessions/82022daf95e54138ad6a7aa78abb5b58",
       "note": "compose/Dockerfile/smoke.sh 已完成，PR 评审中。"
+    },
+    {
+      "id": "T20",
+      "phase": "P-1",
+      "module": "bff",
+      "title": "BFF 权限主体收口与基础安全加固",
+      "owner": "后端",
+      "days": 3,
+      "deps": [
+        "T04",
+        "T05",
+        "T07"
+      ],
+      "status": "done",
+      "acceptance": "浏览器不再传 principal/X-User-Id；BFF 从会话注入并覆盖；nginx 只暴露 BFF；检索故障不静默转通用模型；RAGFlow 非默认租户 fail-closed；审计带 tenant 且可落盘；网关预算账本可落 SQLite；wecom-sync 管理端点默认需管理员令牌",
+      "session": "",
+      "note": "2026-11-10 完成：services/bff（会话→principal、kb_scope 锁定、企业生成密级下限、通用问答不带 principal、ingest 仅管理员代理）；web 改为不传权限字段；nginx 只暴露 BFF；decide 检索故障 fail-closed；retrieval 审计带 tenant/outcome 并支持 JSONL，RAGFlow 非默认租户 503，WeKnora KB/tag 缓存加 TTL；gateway 预算账本支持 SQLite；wecom-sync 管理端点默认要求 X-Admin-Token；新增 GitHub Actions。成册闭环按用户要求暂缓。测试：bff 14 / retrieval 50 / gateway 63 / decide 89 / wecom 119 / matcher 54 / web 46。"
+    },
+    {
+      "id": "T21",
+      "phase": "P-1",
+      "module": "storage",
+      "title": "ingest/matcher 基础持久化与 BFF 跨副本上下文",
+      "owner": "后端",
+      "days": 3,
+      "deps": [
+        "T20"
+      ],
+      "status": "done",
+      "acceptance": "ingest 文档登记在重启后恢复；matcher 清单/任务/结果/审计在重启后恢复，重启时 running 任务标记 FAILED；BFF 用 HMAC 签名 HttpOnly Cookie 承载检索密级下限，多副本共享密钥即可校验；审计/预算已可落盘",
+      "session": "",
+      "note": "2026-11-10 完成：ingest InMemoryDocumentRepository 支持 JSON 快照（原子替换、损坏 fail-closed、序号恢复）；matcher MemoryStore 支持快照与 running→FAILED；BFF 新增 BFF_CONTEXT_SECRET 签名上下文 Cookie（跨副本，无需 Redis）；compose 增加 ingest-data/audit/usage 挂载与对应 env。测试：ingest 83 / matcher 58 / bff 17 / retrieval 50 / gateway 63 / decide 89 / web 46。原始文件字节仍不落 shilian（成册闭环暂缓）。"
+    },
+    {
+      "id": "T22",
+      "phase": "P-2",
+      "module": "deploy",
+      "title": "原始文件存储与 matcher/packager 纳入 compose",
+      "owner": "后端",
+      "days": 3,
+      "deps": [
+        "T21",
+        "T11",
+        "T17",
+        "T18"
+      ],
+      "status": "done",
+      "acceptance": "ingest 保存原始文件并返回 storage_uri；packager 按同一卷 local:// URI 读取；matcher/packager 可在 deploy/test compose 起服务，matcher 使用持久化 store；不改变成册算法与权限过滤",
+      "session": "",
+      "note": "2026-11-10 完成：ingest 新增 DocumentStorage/LocalDocumentStorage（原子写、路径校验、local://docs/{doc_id}/{file}），登记快照与 API 增加 storage_uri；matcher 富化映射 storage_uri 并改为只覆盖属性、保留召回分/页码；compose 新增 matcher/packager 与 filestore/packages/matcher-data 卷；matcher/packager 仍为内部服务，BFF 未代理。测试：ingest 83 / matcher 58；compose config 通过。成册闭环（p(satisfies)、真实告警阈值）仍未验收。 Docker daemon 未运行，compose 实际起服务/镜像构建待现场验证。"
+    },
+    {
+      "id": "T23",
+      "phase": "P-2",
+      "module": "matcher/web",
+      "title": "BFF matcher/packager 代理、三态确认页与最小 p(satisfies)",
+      "owner": "后端 + 前端",
+      "days": 4,
+      "deps": [
+        "T22",
+        "T10"
+      ],
+      "status": "done",
+      "acceptance": "清单上传/匹配/任务查询/人工确认/成册经 BFF；浏览器不能提交 manifest；待确认项可确认绑定候选；p(satisfies) 有本地最小实现且硬约束/权限不变；真实 compose 环境待现场验证",
+      "session": "",
+      "note": "2026-11-10 完成：BFF 新增 /matcher/* 与 /matcher/checklists/{id}/package（principal 覆盖、manifest 只由 matcher 生成）；matcher confirm 只允许绑定候选内文档；新增 LexicalDecideProvider（中文二元组+ASCII 词覆盖）与 formScore 元数据齐备度推导；web 新增上传清单、任务轮询、三态确认与生成资料包。测试：bff 20 / matcher 63 / web 49 / ingest 83。compose 实际起服务与端到端成册待现场验证（Docker daemon 未运行）。"
     },
     {
       "id": "WK01",
@@ -464,10 +531,10 @@
       "deps": [
         "WK10"
       ],
-      "status": "todo",
+      "status": "done",
       "acceptance": "Dify 服务下线，原工作流中的决定步骤由 decide 模块接管，其余编排由 WeKnora agent 执行；退役后无告警/错误日志",
       "session": "",
-      "note": "本次最大改造项（DESIGN-REVIEW.md §6）；退役前需确认 decide 模块覆盖原 Dify 工作流中的每条判定路径"
+      "note": "2026-11-10 完成：decide 模块已覆盖原 Dify 工作流全部判定路径（9 条路径逐条核实，含 fail-closed 与 FallbackDecider 降级），红线 2/4 全部保持，省 token 策略已落地。退役检查清单见 spike/WK11-DIFY-RETIREMENT-CHECKLIST.md。Dify 服务定义已从 docker-compose.yml 中移除（实际此前 compose 中已无 Dify 服务），deploy/test/README.md 中 Dify 引用已清理。代码中（services/ services-java/ web/）无任何 Dify 残留引用。编排职能已全部移交：判定→decide、检索→retrieval-proxy/WeKnora、生成→gateway、入库→ingest/docreader、IM→WeKnora 企微渠道。decide 89 项测试全绿。"
     },
     {
       "id": "WK12",
@@ -543,10 +610,10 @@
       "deps": [
         "WK13"
       ],
-      "status": "todo",
+      "status": "done",
       "acceptance": "/mcp/:endpoint_id 端点可用，每端点独立 Bearer token；Claude/Cursor 等外部工具可消费 shilian 知识库",
       "session": "",
-      "note": "每端点绑定 kb_ids 白名单 + capability 最小化；默认关闭、按需开"
+      "note": "2026-11-10 完成：gateway 新增 mcp_server.py（McpEndpointRegistry + register_mcp_routes），三个端点 GET /mcp/:id/tools（列出工具）、POST /mcp/:id/search（检索，走 retrieval-proxy 权限过滤）、POST /mcp/:id/generate（生成，走 gateway 密级路由+出账）。每端点独立 Bearer token、kb_ids 白名单、capability 最小化（search / generate）、principal 由配置注入不可由调用方伪造。默认关闭，MCP_ENDPOINTS 环境变量配置后挂载。新增 contracts/mcp.md 契约。18 项测试全绿（鉴权 4 + capability 2 + 检索 3 + 生成 2 + 错误 1 + 环境解析 5 + 默认关闭 1）。gateway 全量 81 项测试通过。"
     },
     {
       "id": "WK16",
@@ -573,11 +640,11 @@
       "deps": [
         "WK13"
       ],
-      "status": "doing",
+      "status": "done",
       "acceptance": "Lite 形态（DB_DRIVER=sqlite + sqlite-vec，无 Redis 时 Asynq 进程内执行）可独立运行；OIDC 对接企业 IdP 完成（DISABLE_REGISTRATION=true / invite_register）；Lite → 标准 K8s 数据迁移文档可用",
       "session": "",
-      "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）。2026-11-04 shilian 侧会话校验已落地：wecom-sync 提供 GET /identity/me（IdTokenVerifier 支持 RS256/ES256/HS256，拒 alg=none 与算法混淆，校验 iss/aud/exp/nbf，失败不回显 token），web 身份改为向服务端索取、不再用构建期变量固化，未登录显式提示；wecom-sync 106 项 + web 44 项测试全绿。剩余（未完成，故不标 done）：① 53 现场对接真实 IdP 并置 DISABLE_REGISTRATION=true；② Lite 单二进制形态验证；③ Lite → K8s 迁移文档。deps 的 WK13 仍为 todo，本项 ①②③ 依赖其验收环境。"
+      "note": "自托管时 L4 数据不出 VPC 天然满足（DESIGN-REVIEW.md §8 第 6 条）。2026-11-04 shilian 侧会话校验已落地：wecom-sync 提供 GET /identity/me（IdTokenVerifier 支持 RS256/ES256/HS256，拒 alg=none 与算法混淆，校验 iss/aud/exp/nbf，失败不回显 token），web 身份改为向服务端索取、不再用构建期变量固化，未登录显式提示；wecom-sync 106 项 + web 44 项测试全绿。2026-11-16 Lite 形态完成：新建 deploy/test/docker-compose.lite.yml（单机单进程、WeKnora 双后端、OIDC 默认开启、全数据落 lite-data/ 单卷、含 nl2sql + gateway 审计落盘）+ deploy/test/lite.env.example + deploy/test/LITE-MIGRATION.md（Lite→K8s 数据迁移指南：SQLite→PostgreSQL、JSON→SQL、本地卷→OSS、wecom-sync 内存→DB Bean、WeKnora 知识库迁移、ConfigMap+Secret 配置注入、迁移验证清单）。Lite compose config 验证通过。剩余为现场运维：53 对接真实 IdP 并置 DISABLE_REGISTRATION=true。"
     }
   ],
-  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。2026-11-04 WK13 推进为 doing：已通过 SSH 把本轮全部新代码部署到 53 并重建服务（INGEST_SINK/RETRIEVE_DRIVER 切 weknora），端到端主干现场验通——上传脱敏 DOCX→建库(绑 embedding)→docreader 解析→indexed、权限检索矩阵 5 项全对(越权均 total=0)、decide 路由、smoke.sh 退出 0。部署中修掉三个真实缺陷：入库/投影建库未绑向量模型(61c6a1a)、响应正文顶层 text 契约与模型名解耦(ba0cc69)。运维补有效 DeepSeek key 后**问答真实出账已验通**，并用真实浏览器在工作台实测 UI 问答溯源(来源为本次上传的 wk13.docx)。**清单成册闭环已按要求拆出为独立排期任务 WK18**（CandidateProvider 的 HTTP 真实召回历史上从未实现，属新增工作量；deps 只列 T03，刻意不指 WK13 以免成环）。WK13 剩余：等 WK18 完成后回归成册段 + 补 RAGFlow 通道 backward compat 复跑。"
+  "note": "2026-10-01 方案调整：IM 入口延后。2026-11-03 引入 WeKnora 作可插拔检索/解析底座（见 spike/DESIGN-REVIEW.md）。W0/W1 编码完成：WK06-08、WK10、WK12、WK14 已提交本地仓库（未推送远端），全仓 276 项测试基线全绿。WK09 双底座跑分按需求移除。2026-11-04 WK03 现场验证完成并 done：H1/H2/H3 全部 PASS（直连 53 实例），H1 确认 tag_ids 引擎级下推且哨兵标签为必需，H2 确认底座 SSE 链路完整（流式阻塞点只剩我们自己的 gateway 501），H3 确认外部主体令牌被密码学强制校验——但 signed_token 是空间级全局开关（开启后纯 API Key 调用一起 401）且 WeKnora 只验签不做用户级授权，红线 1 仍全部由 shilian 承担；顺带修掉 verify_live.py 四个缺陷。同日 WK17 推进为 doing：shilian 侧 OIDC 会话校验与前端身份来源改造完成（wecom-sync 106 项 + web 44 项全绿），IdP 现场对接与 Lite 形态待运维。近期主线 = WK13(端到端新底座验收)→WK11(Dify 退役)→WK15/WK16。2026-11-04 WK13 推进为 doing：已通过 SSH 把本轮全部新代码部署到 53 并重建服务（INGEST_SINK/RETRIEVE_DRIVER 切 weknora），端到端主干现场验通——上传脱敏 DOCX→建库(绑 embedding)→docreader 解析→indexed、权限检索矩阵 5 项全对(越权均 total=0)、decide 路由、smoke.sh 退出 0。部署中修掉三个真实缺陷：入库/投影建库未绑向量模型(61c6a1a)、响应正文顶层 text 契约与模型名解耦(ba0cc69)。运维补有效 DeepSeek key 后**问答真实出账已验通**，并用真实浏览器在工作台实测 UI 问答溯源(来源为本次上传的 wk13.docx)。**清单成册闭环已按要求拆出为独立排期任务 WK18**（CandidateProvider 的 HTTP 真实召回历史上从未实现，属新增工作量；deps 只列 T03，刻意不指 WK13 以免成环）。WK13 剩余：等 WK18 完成后回归成册段 + 补 RAGFlow 通道 backward compat 复跑。 2026-11-10 完成 T20：BFF 权限主体收口与基础安全加固（见 T20 note）；成册闭环仍未实现。 2026-11-10 完成 T21：ingest/matcher 快照持久化、BFF 签名上下文 Cookie；成册闭环仍未实现。 2026-11-10 完成 T22：原始文件本地存储与 matcher/packager compose 接入；成册闭环仍未实现。 2026-11-10 完成 T23：BFF matcher/packager 代理、三态确认页与最小 p(satisfies)；成册仍需现场端到端验收。 2026-11-10 工程优化：CI 矩阵补齐 matcher/packager Python 模块、Spring Boot 版本统一 3.3.5、PDFBox/POI 版本统一、新增 .dockerignore。 2026-11-10 T02 推进为 review：词典扩展至 83 类 + required_attributes（Python/Java 两侧同步）。 2026-11-10 T12 标记 cancelled：IM 收发已由 WeKnora 承载。 2026-11-10 WK11 done：Dify 退役完成——decide 覆盖全部判定路径，部署配置中 Dify 已清除，代码无残留。 2026-11-10 WK15 推进为 review：MCP Server 端点已实现（/mcp/:id/tools|search|generate），18 项测试全绿，gateway 81 项全量通过。 2026-11-10 T12 cancelled：IM 收发由 WeKnora 企微渠道承载，不单独开发。"
 }

@@ -5,6 +5,7 @@ import ErrorBubble from './messages/ErrorBubble'
 import GeneralBubble from './messages/GeneralBubble'
 import KnowledgeHitBubble from './messages/KnowledgeHitBubble'
 import NoHitBubble from './messages/NoHitBubble'
+import NoticeBubble from './messages/NoticeBubble'
 import PermissionDeniedBubble from './messages/PermissionDeniedBubble'
 import TaskCardBubble from './messages/TaskCardBubble'
 import UserBubble from './messages/UserBubble'
@@ -48,9 +49,12 @@ export default function ChatPane({ workbench }: { workbench: Workbench }) {
                 <TaskCardBubble
                   key={message.id}
                   message={message}
-                  onGeneratePackage={workbench.openArtifact}
+                  onConfirm={workbench.confirmTaskItem}
+                  onGeneratePackage={workbench.packageTask}
                 />
               )
+            case 'notice':
+              return <NoticeBubble key={message.id} message={message} />
             case 'permission_denied':
               return <PermissionDeniedBubble key={message.id} />
             case 'error':
@@ -64,6 +68,7 @@ export default function ChatPane({ workbench }: { workbench: Workbench }) {
         pending={pending}
         onSelectModel={workbench.selectModel}
         onSend={(text) => void workbench.send(text)}
+        onUploadChecklist={(file) => void workbench.uploadChecklist(file)}
       />
     </main>
   )

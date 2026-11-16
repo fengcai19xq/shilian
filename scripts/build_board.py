@@ -94,7 +94,9 @@ contracts                  跨模块接口契约，改动需全员评审</pre>
 
 <script>
 var BASE = __DATA__;
-var LABEL = {todo:"未开始", doing:"进行中", blocked:"阻塞", done:"已完成"};
+var LABEL = {todo:"未开始", doing:"进行中", review:"待评审", blocked:"阻塞", completed:"已完成（旧）", done:"已完成"};
+var DONE = {done:1, completed:1};
+function isDone(t){ return !!DONE[t.status]; }
 var KEY = "shilian-board-v1";
 
 function load(){
@@ -113,11 +115,11 @@ function save(id, st){
 
 function render(){
   var tasks = load();
-  var done = tasks.filter(function(t){return t.status === "done"}).length;
+  var done = tasks.filter(isDone).length;
   var doing = tasks.filter(function(t){return t.status === "doing"}).length;
   var blocked = tasks.filter(function(t){return t.status === "blocked"}).length;
   var days = tasks.reduce(function(a,t){return a + t.days}, 0);
-  var leftDays = tasks.filter(function(t){return t.status !== "done"})
+  var leftDays = tasks.filter(function(t){return !isDone(t)})
                       .reduce(function(a,t){return a + t.days}, 0);
   document.getElementById("kpis").innerHTML =
     kpi(Math.round(done / tasks.length * 100) + "%", "整体完成度") +
@@ -132,7 +134,7 @@ function render(){
   var html = "";
   BASE.phases.forEach(function(p){
     var list = byPhase[p.id] || [];
-    var d = list.filter(function(t){return t.status === "done"}).length;
+    var d = list.filter(isDone).length;
     var pct = list.length ? Math.round(d / list.length * 100) : 0;
     html += '<div class="phase"><div class="ph-head"><b>' + esc(p.name) + '</b>' +
             '<small>' + esc(p.goal) + '</small>' +
@@ -143,7 +145,7 @@ function render(){
     list.forEach(function(t){
       var ready = t.deps.every(function(d2){
         var dep = tasks.filter(function(x){return x.id === d2})[0];
-        return !dep || dep.status === "done";
+        return !dep || isDone(dep);
       });
       html += '<tr data-st="' + t.status + '"><td class="id">' + t.id + '</td>' +
         "<td><b>" + esc(t.title) + "</b></td>" +
@@ -163,7 +165,7 @@ function render(){
 }
 function sel(t){
   var h = '<select data-id="' + t.id + '">';
-  ["todo","doing","blocked","done"].forEach(function(k){
+  ["todo","doing","review","blocked","completed","done"].forEach(function(k){
     h += '<option value="' + k + '"' + (t.status === k ? " selected" : "") + ">" + LABEL[k] + "</option>";
   });
   return h + "</select>";

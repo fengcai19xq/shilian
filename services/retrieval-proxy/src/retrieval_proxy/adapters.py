@@ -6,7 +6,8 @@ RAGFlow 侧沿用 metadata_condition 方言；WeKnora 侧见 weknora.py。
 
 from __future__ import annotations
 
-from .backends import BackendChunk, BackendQuery
+from .backends import BackendChunk, BackendError, BackendQuery
+from .models import DEFAULT_TENANT
 from .ragflow import RagflowClient, RagflowQuery
 
 
@@ -17,6 +18,11 @@ class RagflowBackend:
         self._client = client
 
     def retrieve(self, query: BackendQuery) -> list[BackendChunk]:
+        # RAGFlow 的 metadata_condition 没有 tenant 维度：多租户共享实例时，
+        # 仅靠 dept/sensitivity/project 无法阻止跨租户泄露。在契约和写入侧
+        # 补齐 tenant 之前，非默认租户一律 fail-closed。
+        if query.principal.tenant != DEFAULT_TENANT:
+            raise BackendError("RAGFlow 后端未启用多租户隔离")
         chunks = self._client.retrieve(
             RagflowQuery(
                 question=query.question,

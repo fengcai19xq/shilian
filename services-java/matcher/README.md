@@ -40,6 +40,13 @@ service/   MatcherService（编排、审计、manifest）、MemoryStore（内存
 web/       MatcherController
 ```
 
+## p(satisfies_item) 最小实现
+
+默认 `MATCHER_DECIDE_BACKEND=lexical`：用清单项标准名/原文与候选文件名做中文二元组 + ASCII 词覆盖，
+再叠加类型一致奖励，得到 0.55~0.95 的 p。它不调模型、可解释、可单测；**不是最终语义判定**，
+T03 黄金集到位后应做阈值回归，必要时替换为 Jev/小模型。`form_score` 缺失时按期间/口径/份数/盖章
+四类元数据齐备度推导，避免召回分很高却因 formScore=0 永远够不到 matched。
+
 ## 配置
 
 | 环境变量 | 默认 | 说明 |
@@ -47,6 +54,9 @@ web/       MatcherController
 | `MATCHER_MATCHED_THRESHOLD` | 0.85 | ≥ 该值为 matched |
 | `MATCHER_PENDING_THRESHOLD` | 0.50 | ≥ 该值为 pending，否则 missing |
 | `MATCHER_W_RECALL` / `MATCHER_W_DECIDE` / `MATCHER_W_FORM` | 0.35 / 0.50 / 0.15 | 打分权重 |
+| `MATCHER_ENRICHMENT_ENABLED` | `false` | 是否用 ingest 登记富化候选属性；成册闭环验收前保持关闭 |
+| `MATCHER_DECIDE_BACKEND` | `lexical` | p(satisfies) 实现：`lexical` 本地词面判定 / `reject` 全部待确认 |
+| `MATCHER_STORE_PATH` | 空 | 清单/任务/结果/审计 JSON 快照路径；留空为纯内存；重启时 running/queued 任务标记 failed |
 
 调参方向以降低假阳性为准（宁可调高 matched 阈值）。
 

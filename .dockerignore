@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/*.egg-info
+**/build
+**/dist
+
+# Java
+**/target
+**/*.class
+
+# Node
+web/node_modules
+web/dist
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 临时文件与本地数据
+deploy/test/audit
+deploy/test/usage
+deploy/test/ingest-data
+deploy/test/filestore
+deploy/test/packages
+deploy/test/matcher-data
+
+# spike 诊断脚本（不入库、不入镜像）
+spike/weknora/add_qwen.py
+spike/weknora/run_verify.py
+spike/weknora/deploy_mvp.sh
+spike/weknora/verify_mvp.py
+spike/weknora/verify_mvp.sh
+spike/weknora/verify_proxy.py
+spike/weknora/diag_*.py
+spike/weknora/check_*.py
+spike/weknora/fix_*.py
+spike/weknora/find_timeout.py
+spike/weknora/extract_*.py
+spike/weknora/search_index_js.py
+spike/weknora/probe_enqueue.py
+spike/weknora/wait_doc.py
+spike/weknora/del_model.py
+spike/weknora/final_fix.py
+spike/weknora/mvp_phase2.py
+
+# 文档与进度（不打入运行镜像）
+docs/
+scripts/
+tasks.json
+README.md
+AGENTS.md

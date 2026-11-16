@@ -54,9 +54,10 @@ TAG_ROWS = [
 ]
 
 
-def _client(handler) -> WeKnoraClient:
+def _client(handler, cache_ttl_seconds: float = 60.0) -> WeKnoraClient:
     return WeKnoraClient("http://weknora.test", "k", tenant_id="10001",
-                         transport=httpx.MockTransport(handler))
+                         transport=httpx.MockTransport(handler),
+                         cache_ttl_seconds=cache_ttl_seconds)
 
 
 def _ok(data):
@@ -235,3 +236,17 @@ def test_名称解析结果缓存_二次检索不再拉列表():
     # 第二次只有 knowledge-search，列表/标签索引已缓存
     assert len(calls) == before + 1
     assert calls[-1] == "/api/v1/knowledge-search"
+
+
+def test_索引缓存按TTL过期刷新_新建KB不要求重启():
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req.url.path)
+        return _standard_handler([_row()], {})(req)
+
+    client = _client(handler, cache_ttl_seconds=0)
+    q = _backend_query()
+    client.retrieve(q)
+    client.retrieve(q)
+    assert calls.count("/api/v1/knowledge-bases") == 2

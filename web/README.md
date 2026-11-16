@@ -30,10 +30,13 @@ pnpm build                 # 产物输出到 dist/
 通过 `VITE_API_MODE` 切换，两种实现都满足 `WorkbenchApi` 接口：
 
 - `mock`（默认）：走 `src/api/mock.ts` 的写死示例数据（已脱敏），不连后端
-- `http`：走 `src/api/http.ts`，请求 `/api/*`，由 Vite dev proxy 转发到三个服务
+- `http`：走 `src/api/http.ts`，请求 `/api/*`，由 Vite dev proxy 转发给 **BFF**
+
+浏览器不构造、也不发送 `principal` / `X-User-Id`；权限主体由 BFF 从会话解析并注入。
+`VITE_DEV_PRINCIPAL` 仅用于本地 mock/界面回显，不会随业务请求发送。
 
 ```bash
-cp .env.example .env.local   # 填写 VITE_API_MODE=http 与三个服务地址；.env.local 不入库
+cp .env.example .env.local   # VITE_API_MODE=http、BFF_URL=http://127.0.0.1:8010；.env.local 不入库
 pnpm dev
 ```
 
@@ -41,17 +44,20 @@ pnpm dev
 | --- | --- |
 | `VITE_API_MODE` | `mock` / `http` |
 | `VITE_API_BASE` | 前端请求前缀，默认 `/api` |
-| `DECIDE_URL` | dev proxy：`/api/decide/*` → `{DECIDE_URL}/decide/*` |
-| `RETRIEVAL_URL` | dev proxy：`/api/retrieval/*` → `{RETRIEVAL_URL}/retrieval/*` |
-| `GATEWAY_URL` | dev proxy：`/api/gateway/*` → `{GATEWAY_URL}/*`（即 `/v1/invoke`） |
-| `VITE_USER_ID` | 本地联调的 `X-User-Id` |
-| `VITE_DEV_PRINCIPAL` | 本地联调的权限主体 JSON；生产由网关按会话态注入 |
+| `BFF_URL` | dev proxy：`/api/*` → BFF（推荐，唯一入口） |
+| `DECIDE_URL` / `RETRIEVAL_URL` / `GATEWAY_URL` | 旧联调方式；仅 `BFF_URL` 为空时生效 |
+| `VITE_DEV_PRINCIPAL` | 仅本地 mock/界面回显；不随业务请求发送 |
+
+### 清单成册链路
+
+输入框下方「上传清单」→ `POST /matcher/checklists` → `POST /matcher/checklists/{id}/run` → 轮询 `GET /matcher/tasks/{id}` → 三态任务卡。
+待确认项可「确认绑定」候选文档；「生成资料包」由 BFF 用 matcher 生成的 manifest 调 packager，浏览器不提交 manifest。
 
 ### 对话主链路
 
-提问 → `POST /decide/route` →
+提问 → BFF `POST /decide/route`（服务端注入 principal） →
 
-- `enterprise`：`POST /retrieval/search`（`mode=full`、`top_k=8`、`score_threshold=0.35`，带 principal 与 `X-User-Id`）→ 取 top 6 片段组织 prompt → `POST /v1/invoke` → 渲染回答，角标 `[n]` 点击后右栏定位第 n 个片段
+- `enterprise`：BFF `POST /retrieval/search`（`mode=full`、`top_k=8`、`score_threshold=0.35`；principal 由 BFF 注入）→ 取 top 6 片段组织 prompt → BFF `POST /v1/invoke` → 渲染回答，角标 `[n]` 点击后右栏定位第 n 个片段
 - `kb_empty`，或 `enterprise` 但 `total=0`：提示「知识库中没有依据」，用户二次确认后才走通用模型
 - `general`：直接 `POST /v1/invoke`，`sensitivity=L1`，不带 principal 与公司数据
 - `scope_desc == "（无可检索范围）"`（retrieval 返回或 decide evidence）：权限提示

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -141,6 +142,34 @@ class HttpCandidateProviderTest {
         assertThat(d.scope()).isNull();
         assertThat(d.copies()).isNull();
         assertThat(d.stamped()).isNull();
+    }
+
+    @Test
+    void 登记富化只覆盖属性不丢召回分与页码() throws Exception {
+        status = 200;
+        responseBody = """
+                {"hits":[{"chunk_id":"c_1","doc_id":"d_1","doc_name":"审计报告.pdf","dept":"融资部",
+                          "sensitivity":"L3","page":37,"score":0.86,"text":"x"}],"total":1,"scope_desc":"x"}
+                """;
+        IngestRegistryClient registry = new IngestRegistryClient("http://unused") {
+            @Override
+            public Optional<CandidateDoc> enrich(String docId) {
+                return Optional.of(new CandidateDoc(docId, "登记标题", "local://docs/d_1/a.pdf",
+                        "AUDIT_REPORT", List.of("2023"), Scope.CONSOLIDATED, 3, true,
+                        List.of(), 0.0, 0.0));
+            }
+        };
+        HttpCandidateProvider enriched = new HttpCandidateProvider(base, List.of("kb_finance"), 8, 0.35,
+                registry);
+        CandidateDoc d = enriched.recall(Fixtures.makeItem(), principal()).get(0);
+
+        assertThat(d.uri()).isEqualTo("local://docs/d_1/a.pdf");
+        assertThat(d.stdType()).isEqualTo("AUDIT_REPORT");
+        assertThat(d.copies()).isEqualTo(3);
+        assertThat(d.stamped()).isTrue();
+        // 召回分和页码来自检索，不能因登记富化归零
+        assertThat(d.recallScore()).isEqualTo(0.86);
+        assertThat(d.pages()).containsExactly(37);
     }
 
     @Test

@@ -3,13 +3,16 @@
 import { MODEL_CATALOG } from './models'
 import {
   NO_SCOPE_DESC,
+  type Checklist,
   type GatewayRequest,
   type GatewayResponse,
   type MatcherTask,
   type ModelOption,
+  type PackageResult,
   type Principal,
   type RouteRequest,
   type RouteResponse,
+  type RunMatchResponse,
   type SearchRequest,
   type SearchResponse,
 } from './types'
@@ -23,8 +26,18 @@ export interface WorkbenchApi {
   generate(req: GatewayRequest): Promise<GatewayResponse>
   /** 模型选择器可选项（含置灰原因） */
   listModels(): Promise<ModelOption[]>
+  /** POST /matcher/checklists —— 上传清单 */
+  uploadChecklist(file: File): Promise<Checklist>
+  /** GET /matcher/checklists/{id} */
+  getChecklist(checklist_id: string): Promise<Checklist>
+  /** POST /matcher/checklists/{id}/run */
+  runChecklist(checklist_id: string): Promise<RunMatchResponse>
   /** GET /matcher/tasks/{task_id} */
   getMatcherTask(task_id: string): Promise<MatcherTask>
+  /** POST /matcher/items/{id}/confirm */
+  confirmItem(item_id: string, doc_ids: string[], note?: string): Promise<void>
+  /** POST /matcher/checklists/{id}/package —— manifest 由 BFF 从 matcher 生成 */
+  packageChecklist(checklist_id: string): Promise<PackageResult>
   /** 当前登录人与部门（回显用） */
   getPrincipal(): Promise<Principal>
 }
@@ -106,6 +119,7 @@ const TASK: MatcherTask = {
   checklist_id: 'cl_0007',
   title: '中信银行授信资料清单',
   progress: 0.72,
+  state: 'succeeded',
   items: [
     {
       item_id: 'it_0031',
@@ -117,6 +131,7 @@ const TASK: MatcherTask = {
       status: 'matched',
       final_score: 0.91,
       candidate_doc_name: '2021-2023年度审计报告（合并）.pdf',
+      candidate_doc_ids: ['d_audit'],
     },
     {
       item_id: 'it_0032',
@@ -128,6 +143,7 @@ const TASK: MatcherTask = {
       status: 'pending',
       final_score: 0.63,
       candidate_doc_name: '2025年招行流水.pdf',
+      candidate_doc_ids: ['d_flow'],
       note: '仅覆盖 1—9 月，需确认是否补齐',
     },
     {
@@ -139,9 +155,32 @@ const TASK: MatcherTask = {
       constraints: { stamp_required: true },
       status: 'missing',
       final_score: 0.21,
+      candidate_doc_ids: [],
       note: '库内仅 2022 版，需最新备案版本',
     },
   ],
+}
+
+const SOURCE_CHECKLIST: Checklist = {
+  checklist_id: 'cl_0007',
+  title: '中信银行授信资料清单',
+  items: TASK.items.map((item) => ({
+    item_id: item.item_id,
+    checklist_id: item.checklist_id,
+    no: item.no,
+    raw_text: item.raw_text,
+    std_type: item.std_type,
+    constraints: item.constraints,
+  })),
+}
+
+const PACKAGE: PackageResult = {
+  package_id: 'pkg_0007_v1',
+  artifacts: [
+    { kind: 'zip', filename: 'pkg_0007_v1.zip', uri: 'file:///tmp/pkg_0007_v1.zip', size: 1024 },
+  ],
+  missing_entries: ['6.3'],
+  requires_manual_review: true,
 }
 
 /** 创建 mock API 客户端；delay 用于测试时置 0 */
@@ -193,7 +232,8 @@ export function createMockApi(delay = 0): WorkbenchApi {
       // 密级不允许时网关降级并回传 switched_reason，前端必须显式提示
       const isPublic = MODELS.find((m) => m.model === req.preferred_model)?.group === 'public_api'
       const switched = req.sensitivity !== 'L1' && isPublic
-      const enterprise = Boolean(req.principal)
+      // 企业知识问答的标志是 prompt 里带了检索片段；不再依赖前端传 principal
+      const enterprise = Boolean(req.payload.messages)
       return wait<GatewayResponse>({
         model: switched ? 'deepseek-v3-enterprise' : req.preferred_model,
         switched_reason: switched ? `${req.sensitivity} 内容不允许通用通道` : undefined,
@@ -210,10 +250,42 @@ export function createMockApi(delay = 0): WorkbenchApi {
     async getMatcherTask(task_id: string) {
       return wait({ ...TASK, task_id })
     },
+    async uploadChecklist(_file: File) {
+      return wait(SOURCE_CHECKLIST)
+    },
+    async getChecklist(checklist_id: string) {
+      return wait({ ...SOURCE_CHECKLIST, checklist_id })
+    },
+    async runChecklist(checklist_id: string) {
+      return wait<RunMatchResponse>({ task_id: TASK.task_id, checklist_id, state: 'queued' })
+    },
+    async confirmItem(item_id: string, doc_ids: string[], note = '') {
+      const item = TASK.items.find((x) => x.item_id === item_id)
+      if (!item) throw new Error('item not found')
+      await wait({
+        ...item,
+        status: doc_ids.length ? 'matched' : 'missing',
+        final_score: doc_ids.length ? 1 : 0,
+        candidate_doc_ids: doc_ids,
+        note,
+      })
+    },
+    async packageChecklist(_checklist_id: string) {
+      return wait(PACKAGE)
+    },
     async getPrincipal() {
       return wait(PRINCIPAL)
     },
   }
 }
 
-export const mockData = { PRINCIPAL, MODELS, HIT_RESPONSE, TASK, HIT_KEYWORD, DENY_KEYWORD }
+export const mockData = {
+  PRINCIPAL,
+  MODELS,
+  HIT_RESPONSE,
+  TASK,
+  SOURCE_CHECKLIST,
+  PACKAGE,
+  HIT_KEYWORD,
+  DENY_KEYWORD,
+}

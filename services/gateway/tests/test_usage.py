@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from gateway.schemas import InvokeRequest, Principal, Purpose, Sensitivity, Usage
-from gateway.usage import UsageLedger
+from gateway.usage import SqliteUsageLedger, UsageLedger
 
 from .conftest import make_request
 
@@ -170,3 +170,22 @@ def test_刚跨过80的调用当次即告警(service, factory):
     factory.client.prompt_tokens = 10_000
     response = service.invoke(make_request(dept="融资部"))
     assert response.budget_alert and "80%" in response.budget_alert
+
+
+def test_sqlite账本跨实例保留累计值(tmp_path) -> None:
+    path = tmp_path / "usage.sqlite"
+    first = SqliteUsageLedger(path)
+    first.record("融资部", Purpose.generate, "m", Usage(prompt_tokens=10, completion_tokens=5, cost_cny=1.2),
+                 period="2026-10", tenant="acme")
+    first.record("融资部", Purpose.generate, "m", Usage(cost_cny=0.8), period="2026-10", tenant="acme")
+
+    second = SqliteUsageLedger(path)
+    record = second.get("融资部", Purpose.generate, "m", period="2026-10", tenant="acme")
+    assert record.calls == 2
+    assert record.prompt_tokens == 10
+    assert record.cost_cny == 2.0
+    assert second.dept_total("融资部", period="2026-10", tenant="acme") == 2.0
+    assert second.dept_total("融资部", period="2026-10", tenant="other") == 0.0
+    # 不限租户时聚合所有租户
+    assert second.dept_total("融资部", period="2026-10") == 2.0
+    assert len(second.snapshot(period="2026-10")) == 1

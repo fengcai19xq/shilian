@@ -12,7 +12,12 @@ export function renderApp(overrides: Partial<WorkbenchApi> = {}) {
     search: vi.fn(base.search),
     generate: vi.fn(base.generate),
     listModels: vi.fn(base.listModels),
+    uploadChecklist: vi.fn(base.uploadChecklist),
+    getChecklist: vi.fn(base.getChecklist),
+    runChecklist: vi.fn(base.runChecklist),
     getMatcherTask: vi.fn(base.getMatcherTask),
+    confirmItem: vi.fn(base.confirmItem),
+    packageChecklist: vi.fn(base.packageChecklist),
     getPrincipal: vi.fn(base.getPrincipal),
     ...overrides,
   }

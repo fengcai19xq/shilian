@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
         "oidc.client-id=shilian-web",
         "oidc.algorithm=HS256",
         "oidc.hmac-secret=test-hmac-secret-please-32b!",
+        "identity.require-admin-token=false",
 })
 @AutoConfigureMockMvc
 class IdentityMeOidcTest {

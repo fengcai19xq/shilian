@@ -25,6 +25,7 @@ export interface RecordedCall {
   path: string
   body: Record<string, unknown>
   headers: Record<string, string>
+  credentials?: RequestCredentials
 }
 
 export function routeReply(decision: 'enterprise' | 'general' | 'kb_empty', scope_desc?: string) {
@@ -58,8 +59,8 @@ export function mockFetch(handlers: Handlers) {
   const calls: RecordedCall[] = []
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input)
-    const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {}
-    calls.push({ path, body, headers: { ...(init?.headers as Record<string, string>) } })
+    const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {}
+    calls.push({ path, body, headers: { ...(init?.headers as Record<string, string>) }, credentials: init?.credentials })
     const handler = handlers[path]
     if (handler === undefined) return new Response('not found', { status: 404 })
     const reply = typeof handler === 'function' ? (handler as (b: unknown) => Reply)(body) : handler
@@ -78,7 +79,7 @@ export function mockFetch(handlers: Handlers) {
 
 export function renderHttpApp(handlers: Handlers) {
   const fetchState = mockFetch(handlers)
-  const api = createHttpApi({ principal: PRINCIPAL, userId: PRINCIPAL.user_id })
+  const api = createHttpApi({ principal: PRINCIPAL })
   render(
     <ApiContext.Provider value={api}>
       <App />

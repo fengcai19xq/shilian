@@ -18,3 +18,4 @@
 | `ingest.md` | 文档入库状态机与元数据 | ingest-java, retrieval-proxy |
 | `platform.md` | 多租户模型、隔离等级、RetrievalBackend/DocReader/ChannelAdapter SPI | 全部 |
 | `weknora-integration.md` | WeKnora 端点映射、API Key 密级绑定、KB 编码、安全纪律 | retrieval-proxy, gateway, ingest-java |
+| `mcp.md` | MCP 端点对外发布接口（search / generate capability） | gateway |

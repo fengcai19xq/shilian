@@ -2,37 +2,37 @@
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// 开发代理：/api/decide、/api/retrieval、/api/gateway 分别转发到环境变量指定的服务地址
+// 开发代理：优先把 /api 整体转发给 BFF（推荐）；未配置 BFF_URL 时才按服务拆分，
+// 保留旧联调方式。BFF 负责会话→principal 注入，前端不再直连三个内部服务。
 function buildProxy(env: Record<string, string>): Record<string, ProxyOptions> {
   const proxy: Record<string, ProxyOptions> = {}
-  if (env.DECIDE_URL) {
+  if (env.BFF_URL) {
+    proxy['/api'] = {
+      target: env.BFF_URL,
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, ''),
+    }
+  } else {
+    if (env.DECIDE_URL) {
     proxy['/api/decide'] = {
       target: env.DECIDE_URL,
       changeOrigin: true,
       rewrite: (path) => path.replace(/^\/api/, ''),
     }
   }
-  if (env.RETRIEVAL_URL) {
-    proxy['/api/retrieval'] = {
-      target: env.RETRIEVAL_URL,
-      changeOrigin: true,
-      rewrite: (path) => path.replace(/^\/api/, ''),
+    if (env.RETRIEVAL_URL) {
+      proxy['/api/retrieval'] = {
+        target: env.RETRIEVAL_URL,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      }
     }
-  }
-  if (env.GATEWAY_URL) {
-    proxy['/api/gateway'] = {
-      target: env.GATEWAY_URL,
-      changeOrigin: true,
-      rewrite: (path) => path.replace(/^\/api\/gateway/, ''),
-    }
-  }
-  // 会话身份（WK17）：前端向 /api/identity/me 询问「我是谁」，答案由服务端从会话解析，
-  // 不再由构建期变量把权限主体交给客户端。
-  if (env.WECOM_SYNC_URL) {
-    proxy['/api/identity'] = {
-      target: env.WECOM_SYNC_URL,
-      changeOrigin: true,
-      rewrite: (path) => path.replace(/^\/api/, ''),
+    if (env.GATEWAY_URL) {
+      proxy['/api/gateway'] = {
+        target: env.GATEWAY_URL,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/gateway/, ''),
+      }
     }
   }
   // 平台管理面入口（WK12）。留空则不代理（未接入 WeKnora 的环境）。

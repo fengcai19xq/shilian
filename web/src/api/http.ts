@@ -1,23 +1,32 @@
 // 真实 HTTP 客户端：与 mock 实现同一个 WorkbenchApi 接口。
-// 路径统一挂在 /api 前缀下，由 Vite dev proxy（或部署时的反向代理）转发到各服务：
-//   /api/decide/route      → {DECIDE_URL}/decide/route
-//   /api/retrieval/search  → {RETRIEVAL_URL}/retrieval/search
-//   /api/gateway/v1/invoke → {GATEWAY_URL}/v1/invoke
-//   /api/identity/me       → {WECOM_SYNC_URL}/identity/me（会话身份，WK17）
+// 路径统一挂在 /api 前缀下，由 BFF（生产 nginx / 本地 Vite dev proxy）统一接入：
+//   /api/identity/me       → BFF → wecom-sync /identity/me（只读回显）
+//   /api/decide/route      → BFF → decide /decide/route
+//   /api/retrieval/search  → BFF → retrieval-proxy /retrieval/search
+//   /api/gateway/v1/invoke → BFF → gateway /v1/invoke
+//
+// 安全边界（2026-11 收口）：
+// - 浏览器不构造、也不发送 principal；dept / max_sensitivity / projects 只由 BFF 注入。
+// - 浏览器不发送 X-User-Id；会话凭据走 Cookie / Authorization，由 BFF 换 principal。
+// - VITE_DEV_PRINCIPAL 只用于本地 mock/回显，不随业务请求发送。
 import type { WorkbenchApi } from './mock'
 import { MODEL_CATALOG } from './models'
 import type {
+  Checklist,
   GatewayRequest,
   GatewayResponse,
   MatcherTask,
+  MatcherTaskResponse,
+  PackageResult,
   Principal,
   RouteRequest,
   RouteResponse,
+  RunMatchResponse,
   SearchRequest,
   SearchResponse,
 } from './types'
 
-export type ServiceName = 'decide' | 'retrieval' | 'gateway' | 'identity'
+export type ServiceName = 'decide' | 'retrieval' | 'gateway' | 'identity' | 'matcher' | 'packager'
 
 /** 服务返回非 2xx。只保留服务名与状态码，不透传响应体，避免把后端信息带到界面上 */
 export class ApiHttpError extends Error {
@@ -33,9 +42,10 @@ export class ApiHttpError extends Error {
 export interface HttpApiOptions {
   /** 接口前缀，默认 /api */
   baseUrl?: string
-  /** 会话用户 ID，作为 X-User-Id 头；请求体带 principal 时以 principal.user_id 为准 */
-  userId?: string
-  /** 会话态权限主体（仅回显 + 透传，服务端以网关注入为准） */
+  /**
+   * 仅本地 mock/联调时用于界面回显，**不会随业务请求发送**。
+   * 生产身份一律由 BFF 从会话解析。
+   */
   principal?: Principal
   /** 便于测试替换；默认取调用时的全局 fetch */
   fetchImpl?: typeof fetch
@@ -81,70 +91,129 @@ export function normalizeGatewayResponse(raw: JsonRecord): GatewayResponse {
   }
 }
 
+/** 去掉浏览器可能塞进来的权限字段；BFF 会再覆盖一次，这里保证请求体本身不带。 */
+function withoutPrincipal<T extends { principal?: unknown }>(body: T): Omit<T, 'principal'> {
+  const { principal: _ignored, ...rest } = body
+  return rest
+}
+
 export function createHttpApi(options: HttpApiOptions = {}): WorkbenchApi {
   const baseUrl = (options.baseUrl ?? '/api').replace(/\/$/, '')
 
-  async function post<T>(service: ServiceName, path: string, body: unknown, userId?: string) {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    const uid = userId ?? options.userId
-    if (uid) headers['X-User-Id'] = uid
+  async function post<T>(service: ServiceName, path: string, body: unknown) {
     const doFetch = options.fetchImpl ?? fetch
     const res = await doFetch(`${baseUrl}${path}`, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      credentials: 'include',
     })
     if (!res.ok) throw new ApiHttpError(service, res.status)
     return (await res.json()) as T
   }
 
-  /**
-   * 会话身份端点用 GET。
-   * 过渡模式（网关已完成外部鉴权）下带上 X-User-Id：生产由网关按会话态覆盖，
-   * 本地联调才等于自报；oidc.enabled=true 后服务端直接忽略此头，只认 id_token。
-   */
-  async function get<T>(service: ServiceName, path: string) {
-    const headers: Record<string, string> = {}
-    if (options.userId) headers['X-User-Id'] = options.userId
+  /** 会话身份：只向 BFF 询问“我是谁”，不携带任何自报身份头。 */
+  async function postForm<T>(service: ServiceName, path: string, form: FormData) {
     const doFetch = options.fetchImpl ?? fetch
-    const res = await doFetch(`${baseUrl}${path}`, { method: 'GET', headers })
+    const res = await doFetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      body: form,
+      credentials: 'include',
+    })
+    if (!res.ok) throw new ApiHttpError(service, res.status)
+    return (await res.json()) as T
+  }
+
+  async function get<T>(service: ServiceName, path: string) {
+    const doFetch = options.fetchImpl ?? fetch
+    const res = await doFetch(`${baseUrl}${path}`, {
+      method: 'GET',
+      credentials: 'include',
+    })
     if (!res.ok) throw new ApiHttpError(service, res.status)
     return (await res.json()) as T
   }
 
   return {
     route(req: RouteRequest) {
-      return post<RouteResponse>(
-        'decide',
-        '/decide/route',
-        { user_choice: 'auto', ...req },
-        req.principal?.user_id,
-      )
+      return post<RouteResponse>('decide', '/decide/route', {
+        user_choice: 'auto',
+        ...withoutPrincipal(req),
+      })
     },
     search(req: SearchRequest) {
-      return post<SearchResponse>('retrieval', '/retrieval/search', req, req.principal?.user_id)
+      return post<SearchResponse>('retrieval', '/retrieval/search', withoutPrincipal(req))
     },
     async generate(req: GatewayRequest) {
-      const raw = await post<JsonRecord>('gateway', '/gateway/v1/invoke', req, req.principal?.user_id)
+      const raw = await post<JsonRecord>(
+        'gateway',
+        '/gateway/v1/invoke',
+        withoutPrincipal(req),
+      )
       return normalizeGatewayResponse(raw)
     },
     async listModels() {
       // gateway 契约暂无模型列表接口，使用前端静态目录
       return MODEL_CATALOG
     },
+    async uploadChecklist(file: File): Promise<Checklist> {
+      const form = new FormData()
+      form.append('file', file)
+      return postForm<Checklist>('matcher', '/matcher/checklists', form)
+    },
+    getChecklist(checklist_id: string) {
+      return get<Checklist>('matcher', `/matcher/checklists/${checklist_id}`)
+    },
+    runChecklist(checklist_id: string) {
+      return post<RunMatchResponse>('matcher', `/matcher/checklists/${checklist_id}/run`, {})
+    },
     async getMatcherTask(task_id: string): Promise<MatcherTask> {
-      // 成册任务不在 T07 范围内，http 模式暂不接 matcher
-      throw new Error(`matcher 未接入 http 模式：${task_id}`)
+      const raw = await get<MatcherTaskResponse>('matcher', `/matcher/tasks/${task_id}`)
+      const checklist = await get<Checklist>('matcher', `/matcher/checklists/${raw.task.checklist_id}`)
+      const byItem = new Map(checklist.items.map((item) => [item.item_id, item]))
+      return {
+        task_id: raw.task.task_id,
+        checklist_id: raw.task.checklist_id,
+        title: checklist.title,
+        progress: raw.progress,
+        state: raw.task.state,
+        items: raw.task.results.map((result) => {
+          const source = byItem.get(result.item_id)
+          const candidates = result.candidates ?? []
+          const best = candidates
+            .filter((c) => !c.rejected)
+            .sort((a, b) => (b.final_score ?? 0) - (a.final_score ?? 0))[0]
+          return {
+            item_id: result.item_id,
+            checklist_id: raw.task.checklist_id,
+            no: result.no,
+            raw_text: source?.raw_text ?? result.std_name,
+            std_type: result.std_type,
+            constraints: source?.constraints ?? {},
+            status: result.status,
+            final_score: result.score,
+            candidate_doc_name: best?.doc_name ?? candidates[0]?.doc_name,
+            candidate_doc_ids: candidates.filter((c) => !c.rejected).map((c) => c.doc_id),
+            note: result.note,
+          }
+        }),
+      }
+    },
+    async confirmItem(item_id: string, doc_ids: string[], note = '') {
+      await post<unknown>('matcher', `/matcher/items/${item_id}/confirm`, { doc_ids, note })
+    },
+    packageChecklist(checklist_id: string) {
+      return post<PackageResult>('matcher', `/matcher/checklists/${checklist_id}/package`, {})
     },
     async getPrincipal() {
-      // 本地联调可直接注入主体，省掉起后端；生产不注入，身份一律来自服务端
+      // 仅本地 mock 回显可直接用；生产一律走 BFF 会话
       if (options.principal) return options.principal
       return get<Principal>('identity', '/identity/me')
     },
   }
 }
 
-/** 从 Vite 环境变量读取 http 客户端配置；VITE_DEV_PRINCIPAL 仅用于本地联调 */
+/** 从 Vite 环境变量读取 http 客户端配置。 */
 export function httpOptionsFromEnv(env: ImportMetaEnv): HttpApiOptions {
   let principal: Principal | undefined
   if (env.VITE_DEV_PRINCIPAL) {
@@ -156,7 +225,6 @@ export function httpOptionsFromEnv(env: ImportMetaEnv): HttpApiOptions {
   }
   return {
     baseUrl: env.VITE_API_BASE || '/api',
-    userId: env.VITE_USER_ID || principal?.user_id,
     principal,
   }
 }

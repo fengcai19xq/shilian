@@ -29,9 +29,17 @@ mvn spring-boot:run         # 启动服务，默认内存存储 + 内存 Fake RA
 | `ingest.chunk.overlap` | `INGEST_CHUNK_OVERLAP` | 100 |
 | `ingest.async` | `INGEST_ASYNC` | true（后台线程解析，POST 返回 uploaded） |
 | `ingest.sink` | `INGEST_SINK` | ragflow（另一取值为 weknora，见下） |
+| `ingest.store.path` | `INGEST_STORE_PATH` | 空（文档登记 JSON 快照；设置后重启可恢复；重启时 uploaded/parsing 标记 failed） |
+| `ingest.file-store.path` | `INGEST_FILE_STORE_PATH` | 空（原始文件根目录；设置后返回 `storage_uri=local://docs/{doc_id}/{file}`，与 packager 共享卷） |
 | `ingest.ragflow.base-url` / `api-key` | `RAGFLOW_BASE_URL` / `RAGFLOW_API_KEY` | 空（空则用内存实现） |
 | `ingest.ragflow.default-dataset` | `RAGFLOW_DEFAULT_DATASET` | kb_default |
 | `ingest.ragflow.dept-datasets[部门]` | — | 部门 → 数据集名称映射 |
+
+## 原始文件存储
+
+设置 `ingest.file-store.path` 后，上传的原始文件按 `docs/{doc_id}/{file}` 落本地卷，登记对象新增
+`storage_uri`（如 `local://docs/d_000001/审计报告.pdf`）。packager 的 `PACKAGER_STORAGE_ROOT` 挂同一个卷即可读取；
+不设置时只登记元数据、不保存原始文件（成册闭环会缺源文件）。
 
 ## 两条推送通道（WK10）
 

@@ -8,6 +8,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .clients.openai_compatible import MissingApiKeyError
+from .mcp_server import McpEndpointRegistry, register_mcp_routes
 from .openai_compat import EnvKeyRegistry, register_openai_routes
 from .router import NoEligibleModelError
 from .schemas import InvokeRequest, InvokeResponse, Principal
@@ -65,6 +66,18 @@ def create_app(service: GatewayService | None = None) -> FastAPI:
     registry = EnvKeyRegistry.from_env()
     if registry.enabled:
         register_openai_routes(app, effective or get_service(), registry)
+
+    # MCP Server 端点（WK15）：把 shilian 知识库对外发布给 Claude / Cursor 等工具。
+    # 默认关闭，通过 MCP_ENDPOINTS 环境变量配置后才挂载。权限过滤由 retrieval-proxy 保证。
+    mcp_registry = McpEndpointRegistry.from_env()
+    if mcp_registry.enabled:
+        import os as _os
+        _retrieval_url = _os.environ.get("MCP_RETRIEVAL_URL", "http://retrieval-proxy:8000")
+        register_mcp_routes(
+            app, mcp_registry,
+            retrieval_base_url=_retrieval_url,
+            gateway_service=effective or get_service(),
+        )
 
     return app
 

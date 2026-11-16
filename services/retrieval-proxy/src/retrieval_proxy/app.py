@@ -11,10 +11,11 @@ import os
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
+from fastapi.responses import JSONResponse
 
 from .adapters import RagflowBackend
-from .audit import AuditSink, InMemoryAuditSink
-from .backends import RetrievalBackend
+from .audit import AuditSink, InMemoryAuditSink, JsonlAuditSink
+from .backends import BackendError, RetrievalBackend
 from .models import SearchRequest, SearchResponse
 from .service import RetrievalService
 
@@ -43,6 +44,11 @@ def get_service() -> RetrievalService:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="retrieval-proxy", version="0.1.0")
+
+    @app.exception_handler(BackendError)
+    def backend_error(_request, _exc: BackendError) -> JSONResponse:
+        # 不把后端错误原文带回调用方；日志侧由后端客户端自行记录状态码。
+        return JSONResponse({"detail": "检索后端暂不可用"}, status_code=503)
 
     @app.post("/retrieval/search", response_model=SearchResponse)
     def search(
@@ -78,5 +84,7 @@ def create_app_from_env() -> FastAPI:
     WeKnora：WEKNORA_BASE_URL / WEKNORA_API_KEY / WEKNORA_TENANT_ID
     切换：RETRIEVE_DRIVER=ragflow|weknora
     """
-    set_dependencies(_build_backend_from_env())
+    audit_path = os.environ.get("AUDIT_LOG_PATH", "").strip()
+    audit_sink = JsonlAuditSink(audit_path) if audit_path else None
+    set_dependencies(_build_backend_from_env(), audit_sink)
     return app

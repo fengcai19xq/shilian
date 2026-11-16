@@ -44,7 +44,12 @@ class RetrievalService:
             visible_kb_names=scope.knowledge_base_ids,
             tag_names=scope.tag_names,
         )
-        chunks = self._backend.retrieve(query)
+        try:
+            chunks = self._backend.retrieve(query)
+        except Exception:
+            # 失败检索同样留痕；错误原文由后端客户端控制，不写入审计。
+            self._write_audit(request, hit_doc_ids=[], outcome="error")
+            raise
 
         # 兜底校验：即使下游忽略了下推条件，越权片段也不会进入返回体。
         # 这是防御性冗余，不是主过滤手段——主过滤始终在检索请求里完成。
@@ -90,7 +95,9 @@ class RetrievalService:
             return "（无可检索范围）"
         return f"{' / '.join(principal.dept)}（你的权限内）"
 
-    def _write_audit(self, request: SearchRequest, hit_doc_ids: list[str]) -> None:
+    def _write_audit(
+        self, request: SearchRequest, hit_doc_ids: list[str], *, outcome: str = "ok"
+    ) -> None:
         self._audit.write(
             AuditEvent(
                 who=request.principal.user_id,
@@ -98,5 +105,7 @@ class RetrievalService:
                 scope=list(request.kb_scope),
                 hit_doc_ids=hit_doc_ids,
                 mode=request.mode,
+                tenant=request.principal.tenant,
+                outcome=outcome,
             )
         )

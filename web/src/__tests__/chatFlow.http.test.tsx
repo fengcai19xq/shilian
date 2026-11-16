@@ -3,7 +3,6 @@ import { screen, within } from '@testing-library/react'
 import { NO_SCOPE_DESC } from '../api/types'
 import {
   INVOKE_PATH,
-  PRINCIPAL,
   ROUTE_PATH,
   SEARCH_PATH,
   askQuestion,
@@ -48,7 +47,7 @@ afterEach(() => {
 })
 
 describe('路由三态', () => {
-  it('enterprise：带 principal/X-User-Id 发 full 检索，片段进 prompt，再经网关生成', async () => {
+  it('enterprise：不带 principal/X-User-Id，片段进 prompt，再经网关生成（principal 由 BFF 注入）', async () => {
     const { user, callsTo } = renderHttpApp({
       [ROUTE_PATH]: routeReply('enterprise'),
       [SEARCH_PATH]: SEARCH_HIT,
@@ -64,28 +63,30 @@ describe('路由三态', () => {
     const [route] = callsTo(ROUTE_PATH)
     expect(route.body).toMatchObject({
       question: '最近三年研发费用占营收比例',
-      principal: PRINCIPAL,
       user_choice: 'auto',
     })
-    expect(route.headers['X-User-Id']).toBe('u_10231')
+    expect(route.body).not.toHaveProperty('principal')
+    expect(route.headers['X-User-Id']).toBeUndefined()
 
     const [search] = callsTo(SEARCH_PATH)
     expect(search.body).toMatchObject({
       query: '最近三年研发费用占营收比例',
-      principal: PRINCIPAL,
       mode: 'full',
       top_k: 8,
       score_threshold: 0.35,
     })
-    expect(search.headers['X-User-Id']).toBe('u_10231')
+    expect(search.body).not.toHaveProperty('principal')
+    expect(search.headers['X-User-Id']).toBeUndefined()
 
     const [invoke] = callsTo(INVOKE_PATH)
     expect(invoke.body).toMatchObject({
       purpose: 'generate',
       sensitivity: 'L3',
       preferred_model: 'deepseek-v3-enterprise',
-      principal: { user_id: 'u_10231', dept: ['融资部', '财务共享'] },
     })
+    // principal 由 BFF 从会话注入，浏览器请求体不携带
+    expect(invoke.body).not.toHaveProperty('principal')
+    expect(invoke.headers['X-User-Id']).toBeUndefined()
     const messages = (invoke.body.payload as { messages: { content: string }[] }).messages
     const prompt = messages.map((m) => m.content).join('\n')
     expect(prompt).toContain('[1] 《2023年度审计报告.pdf》第 37 页')
@@ -106,7 +107,6 @@ describe('路由三态', () => {
     const [invoke] = callsTo(INVOKE_PATH)
     expect(invoke.body).toMatchObject({ purpose: 'generate', sensitivity: 'L1', payload: { query: '怎么写列表推导式' } })
     expect(invoke.body).not.toHaveProperty('principal')
-    expect(invoke.headers['X-User-Id']).toBe('u_10231')
     expect(invoke.body.payload).not.toHaveProperty('messages')
   })
 

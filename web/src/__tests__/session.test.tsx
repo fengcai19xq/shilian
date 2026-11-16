@@ -8,10 +8,10 @@ import { PRINCIPAL, mockFetch, type Handlers } from '../test/httpHarness'
 
 const ME_PATH = '/api/identity/me'
 
-function renderWithSession(handlers: Handlers, userId?: string) {
+function renderWithSession(handlers: Handlers) {
   const fetchState = mockFetch(handlers)
   // 不注入 principal：身份必须来自网络，这才是生产形态
-  const api = createHttpApi({ userId })
+  const api = createHttpApi()
   render(
     <ApiContext.Provider value={api}>
       <App />

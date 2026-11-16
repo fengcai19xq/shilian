@@ -28,16 +28,25 @@ class TypeHit:
     std_type: str
     std_name: str | None
     status: str  # resolved | unknown
+    required_attributes: dict[str, bool] | None = None  # period/scope/copies/stamped 是否必备
 
 
 class TypeDictionary:
     def __init__(self, types: dict[str, dict]):
         self._std_names: dict[str, str] = {}
+        self._required_attrs: dict[str, dict[str, bool]] = {}
         # 别名 -> std_type，按别名长度倒序匹配，避免「章程」吃掉「公司章程」
         self._alias_index: list[tuple[str, str]] = []
         for std_type, spec in (types or {}).items():
             std_name = (spec or {}).get("std_name", std_type)
             self._std_names[std_type] = std_name
+            # 必备属性（period/scope/copies/stamped），缺失时为 None
+            req = (spec or {}).get("required_attributes")
+            if isinstance(req, dict):
+                self._required_attrs[std_type] = {
+                    k: bool(v) for k, v in req.items()
+                    if k in {"period", "scope", "copies", "stamped"}
+                }
             aliases = set((spec or {}).get("aliases") or [])
             aliases.add(std_name)
             for alias in aliases:
@@ -55,6 +64,10 @@ class TypeDictionary:
     def std_name(self, std_type: str) -> str | None:
         return self._std_names.get(std_type)
 
+    def required_attributes(self, std_type: str) -> dict[str, bool] | None:
+        """返回该类型的必备属性配置（period/scope/copies/stamped），未配置返回 None。"""
+        return self._required_attrs.get(std_type)
+
     def resolve(self, text: str) -> TypeHit:
         """在资料名称中查找最长命中的别名。"""
         key = _normalize(text)
@@ -62,7 +75,12 @@ class TypeDictionary:
             return TypeHit(UNKNOWN_TYPE, None, "unknown")
         for alias, std_type in self._alias_index:
             if alias in key:
-                return TypeHit(std_type, self._std_names.get(std_type), "resolved")
+                return TypeHit(
+                    std_type,
+                    self._std_names.get(std_type),
+                    "resolved",
+                    self._required_attrs.get(std_type),
+                )
         return TypeHit(UNKNOWN_TYPE, None, "unknown")
 
 

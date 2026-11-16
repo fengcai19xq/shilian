@@ -42,6 +42,15 @@ public class MatcherController {
         this.executor = executor;
     }
 
+    @GetMapping("/checklists/{checklistId}")
+    public Checklist getChecklist(@PathVariable String checklistId) {
+        try {
+            return service.getChecklist(checklistId);
+        } catch (NotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "清单不存在");
+        }
+    }
+
     @PostMapping("/checklists")
     @ResponseStatus(HttpStatus.CREATED)
     public Checklist uploadChecklist(
@@ -68,7 +77,9 @@ public class MatcherController {
 
     @PostMapping("/checklists/{checklistId}/run")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public Dtos.RunResponse runMatch(@PathVariable String checklistId) {
+    public Dtos.RunResponse runMatch(
+            @PathVariable String checklistId,
+            @RequestBody(required = false) Dtos.RunRequest request) {
         MatchTask task;
         try {
             task = service.createTask(checklistId);
@@ -76,7 +87,7 @@ public class MatcherController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "清单不存在");
         }
         String state = task.getState();
-        executor.execute(() -> service.runTask(task.getTaskId()));
+        executor.execute(() -> service.runTask(task.getTaskId(), request != null ? request.principal() : null));
         return new Dtos.RunResponse(task.getTaskId(), checklistId, state);
     }
 

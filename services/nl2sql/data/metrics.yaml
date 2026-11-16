@@ -1,0 +1,218 @@
+# 经营指标口径字典 v1
+# 首批 20 个指标，覆盖营收/利润/资产/负债/现金流/研发/人力/产能
+# 每个指标定义：口径名、口径说明、SQL 模板（只读视图）、所需权限密级
+
+indicators:
+
+  # ---- 营收类 ----
+  - id: revenue_total
+    name: 营业收入
+    description: 报告期内企业全部营业收入合计
+    unit: 元
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: "SELECT period, SUM(revenue) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: revenue_by_segment
+    name: 分业务营收
+    description: 按业务板块拆分的营业收入
+    unit: 元
+    sensitivity: L2
+    view: v_finance_by_segment
+    sql_template: "SELECT segment, period, SUM(revenue) AS value FROM {view} WHERE period = :period GROUP BY segment, period"
+    required_params: [period]
+
+  - id: revenue_yoy_growth
+    name: 营收同比增长率
+    description: 本期营业收入与上年同期营业收入的同比变化率
+    unit: "%"
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: >
+      SELECT curr.period,
+             ROUND((curr.revenue - prev.revenue) / NULLIF(prev.revenue, 0) * 100, 2) AS value
+      FROM {view} curr
+      JOIN {view} prev ON prev.period = :prev_period
+      WHERE curr.period = :period
+    required_params: [period, prev_period]
+
+  # ---- 利润类 ----
+  - id: net_profit
+    name: 净利润
+    description: 报告期内归属母公司股东的净利润
+    unit: 元
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: "SELECT period, SUM(net_profit) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: gross_margin
+    name: 毛利率
+    description: (营业收入-营业成本)/营业收入 × 100%
+    unit: "%"
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: >
+      SELECT period,
+             ROUND((SUM(revenue) - SUM(cogs)) / NULLIF(SUM(revenue), 0) * 100, 2) AS value
+      FROM {view} WHERE period = :period GROUP BY period
+    required_params: [period]
+
+  - id: operating_profit
+    name: 营业利润
+    description: 报告期内营业利润合计
+    unit: 元
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: "SELECT period, SUM(operating_profit) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  # ---- 资产类 ----
+  - id: total_assets
+    name: 总资产
+    description: 报告期末资产总额
+    unit: 元
+    sensitivity: L3
+    view: v_balance_sheet
+    sql_template: "SELECT period, SUM(total_assets) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: current_ratio
+    name: 流动比率
+    description: 流动资产/流动负债
+    unit: "倍"
+    sensitivity: L3
+    view: v_balance_sheet
+    sql_template: >
+      SELECT period,
+             ROUND(SUM(current_assets) / NULLIF(SUM(current_liabilities), 0), 2) AS value
+      FROM {view} WHERE period = :period GROUP BY period
+    required_params: [period]
+
+  # ---- 负债类 ----
+  - id: debt_ratio
+    name: 资产负债率
+    description: 总负债/总资产 × 100%
+    unit: "%"
+    sensitivity: L3
+    view: v_balance_sheet
+    sql_template: >
+      SELECT period,
+             ROUND(SUM(total_liabilities) / NULLIF(SUM(total_assets), 0) * 100, 2) AS value
+      FROM {view} WHERE period = :period GROUP BY period
+    required_params: [period]
+
+  # ---- 现金流类 ----
+  - id: operating_cashflow
+    name: 经营活动现金流净额
+    description: 报告期内经营活动产生的现金流量净额
+    unit: 元
+    sensitivity: L2
+    view: v_cashflow_summary
+    sql_template: "SELECT period, SUM(operating_cashflow) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: free_cashflow
+    name: 自由现金流
+    description: 经营活动现金流净额 - 资本性支出
+    unit: 元
+    sensitivity: L3
+    view: v_cashflow_summary
+    sql_template: "SELECT period, SUM(operating_cashflow - capex) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  # ---- 研发类 ----
+  - id: rd_expense
+    name: 研发费用
+    description: 报告期内研发费用合计
+    unit: 元
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: "SELECT period, SUM(rd_expense) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: rd_intensity
+    name: 研发投入强度
+    description: 研发费用/营业收入 × 100%
+    unit: "%"
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: >
+      SELECT period,
+             ROUND(SUM(rd_expense) / NULLIF(SUM(revenue), 0) * 100, 2) AS value
+      FROM {view} WHERE period = :period GROUP BY period
+    required_params: [period]
+
+  # ---- 人力类 ----
+  - id: headcount
+    name: 员工总数
+    description: 报告期末在册员工人数
+    unit: 人
+    sensitivity: L2
+    view: v_hr_summary
+    sql_template: "SELECT period, SUM(headcount) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: per_capita_revenue
+    name: 人均营收
+    description: 营业收入/员工总数
+    unit: 元/人
+    sensitivity: L2
+    view: v_hr_summary
+    sql_template: >
+      SELECT h.period, ROUND(f.revenue / NULLIF(h.headcount, 0), 2) AS value
+      FROM v_hr_summary h
+      JOIN v_finance_summary f ON f.period = h.period
+      WHERE h.period = :period
+    required_params: [period]
+
+  # ---- 产能类 ----
+  - id: production_capacity
+    name: 产能
+    description: 报告期内设计产能
+    unit: GWh
+    sensitivity: L3
+    view: v_production_summary
+    sql_template: "SELECT period, SUM(capacity) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: capacity_utilization
+    name: 产能利用率
+    description: 实际产量/设计产能 × 100%
+    unit: "%"
+    sensitivity: L3
+    view: v_production_summary
+    sql_template: >
+      SELECT period,
+             ROUND(SUM(actual_output) / NULLIF(SUM(capacity), 0) * 100, 2) AS value
+      FROM {view} WHERE period = :period GROUP BY period
+    required_params: [period]
+
+  - id: actual_output
+    name: 实际产量
+    description: 报告期内实际产量
+    unit: GWh
+    sensitivity: L2
+    view: v_production_summary
+    sql_template: "SELECT period, SUM(actual_output) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  # ---- 投融资类 ----
+  - id: capex
+    name: 资本性支出
+    description: 报告期内资本性支出合计
+    unit: 元
+    sensitivity: L3
+    view: v_cashflow_summary
+    sql_template: "SELECT period, SUM(capex) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]
+
+  - id: subsidy_income
+    name: 政府补助
+    description: 报告期内计入当期损益的政府补助
+    unit: 元
+    sensitivity: L2
+    view: v_finance_summary
+    sql_template: "SELECT period, SUM(subsidy_income) AS value FROM {view} WHERE period = :period GROUP BY period"
+    required_params: [period]

@@ -18,7 +18,10 @@ export const NO_SCOPE_DESC = '（无可检索范围）'
 /** POST /retrieval/search 请求体 */
 export interface SearchRequest {
   query: string
-  /** 由会话态回显的权限主体；服务端以网关注入为准 */
+  /**
+   * @deprecated 浏览器不再发送；由 BFF 从会话解析并注入。
+   * 保留字段仅为 mock/旧调用方类型兼容。
+   */
   principal?: Principal
   kb_scope: string[]
   top_k?: number
@@ -92,7 +95,10 @@ export interface GatewayRequest {
   purpose: 'generate' | 'decide' | 'embed' | 'rerank'
   sensitivity: Sensitivity
   preferred_model: string
-  /** 通用问答不得携带 principal（contracts/decide.md） */
+  /**
+   * @deprecated 浏览器不再发送；由 BFF 从会话解析并注入。
+   * 通用问答尤其不得携带 principal（contracts/decide.md）。
+   */
   principal?: Pick<Principal, 'user_id' | 'dept'>
   /** generate 的 payload：原始问题 + 组织好的消息（企业知识问答含命中片段） */
   payload: { query: string; messages?: ChatTurn[] }
@@ -145,7 +151,78 @@ export interface ChecklistItem {
   final_score: number
   /** 建议绑定的文档名（仅权限内文档） */
   candidate_doc_name?: string
+  /** 候选文档 ID（仅权限内文档；用于人工确认绑定） */
+  candidate_doc_ids?: string[]
   note?: string
+}
+
+/** GET /matcher/checklists/{id} 的清单原始项（不含匹配结果） */
+export interface ChecklistSourceItem {
+  item_id: string
+  checklist_id: string
+  no: string
+  raw_text: string
+  std_type: string
+  constraints?: ChecklistItem['constraints']
+}
+
+export interface Checklist {
+  checklist_id: string
+  title: string
+  items: ChecklistSourceItem[]
+}
+
+/** POST /matcher/checklists/{id}/run */
+export interface RunMatchResponse {
+  task_id: string
+  checklist_id: string
+  state: string
+}
+
+/** matcher 任务原始返回（GET /matcher/tasks/{id}） */
+export interface MatcherTaskResponse {
+  task: {
+    task_id: string
+    checklist_id: string
+    state: string
+    total: number
+    done: number
+    error?: string | null
+    results: Array<{
+      item_id: string
+      no: string
+      std_type: string
+      std_name: string
+      status: MatchStatus
+      score: number
+      candidates: Array<{
+        doc_id: string
+        doc_name: string
+        uri?: string
+        rejected?: boolean
+        final_score?: number
+        p_satisfies?: number
+      }>
+      bound_doc_ids: string[]
+      confirmed_by?: string | null
+      note?: string
+    }>
+  }
+  progress: number
+}
+
+export interface PackageArtifact {
+  kind: string
+  filename: string
+  uri: string
+  size: number
+}
+
+export interface PackageResult {
+  package_id: string
+  artifacts: PackageArtifact[]
+  missing_entries: string[]
+  requires_manual_review: boolean
 }
 
 /** GET /matcher/tasks/{task_id} 进度与结果 */
@@ -154,6 +231,8 @@ export interface MatcherTask {
   checklist_id: string
   title: string
   progress: number
+  /** queued / running / succeeded / failed；mock 可省略 */
+  state?: string
   items: ChecklistItem[]
 }
 

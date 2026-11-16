@@ -16,7 +16,10 @@ import com.shilian.ingest.ragflow.RagflowException;
 import com.shilian.ingest.ragflow.ServerSideParseException;
 import com.shilian.ingest.model.Sensitivity;
 import com.shilian.ingest.store.InMemoryDocumentRepository;
+import com.shilian.ingest.store.LocalDocumentStorage;
 import com.shilian.ingest.support.Samples;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -25,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** 异步模式：POST 立即返回 uploaded，后台任务执行后才进入 parsing / indexed。 */
 class IngestServiceTest {
@@ -61,6 +65,19 @@ class IngestServiceTest {
         assertThat(done.getDatasetId()).isEqualTo(ragflow.datasets().get("kb_finance"));
         assertThat(audit.list(doc.getDocId())).extracting(AuditEvent::action)
                 .containsExactly("uploaded", "parsing", "indexed");
+    }
+
+    @Test
+    void uploadStoresOriginalFileAndStorageUri(@TempDir Path dir) {
+        IngestService withStorage = new IngestService(repo, audit, ragflow, new DocumentParser(),
+                new Chunker(200, 20), props, pending::add,
+                Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC),
+                new LocalDocumentStorage(dir));
+        IngestDocument doc = withStorage.submit(new UploadCommand("u_10001", "报表.xlsx",
+                Samples.read("sample.xlsx"), "财务共享", "L2", null, "2023", null, null));
+
+        assertThat(doc.getStorageUri()).startsWith("local://docs/" + doc.getDocId() + "/");
+        assertThat(Files.exists(dir.resolve("docs/" + doc.getDocId() + "/报表.xlsx"))).isTrue();
     }
 
     @Test

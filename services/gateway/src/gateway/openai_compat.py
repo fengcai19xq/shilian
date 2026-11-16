@@ -153,6 +153,7 @@ def _invoke(service: GatewayService, binding: KeyBinding, purpose: Purpose,
             user_id=user_id or f"weknora-{binding.tenant}",
             dept=[binding.dept],
             tenant=binding.tenant,
+            max_sensitivity=binding.sensitivity,
         ),
         payload=payload,
     )

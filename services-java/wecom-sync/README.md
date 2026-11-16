@@ -31,6 +31,8 @@ mvn spring-boot:run              # 默认端口 8020（WECOM_SYNC_PORT），自�
 | `WECOM_BASE_URL` | 企微 API 地址 | `https://qyapi.weixin.qq.com` |
 | `IDENTITY_DEFAULT_MAX_SENSITIVITY` | 无授权时的密级上限 | `L2` |
 | `WECOM_SYNC_PORT` | 服务端口 | `8020` |
+| `IDENTITY_REQUIRE_ADMIN_TOKEN` | 管理端点是否强制管理员令牌 | `true` |
+| `IDENTITY_ADMIN_TOKEN` | 管理端点令牌；未配置且强制时管理端点 403 | 空 |
 | `WEKNORA_PROJECTION_ENABLED` | 是否启用 WeKnora 身份投影（WK14） | `false` |
 | `WEKNORA_BASE_URL` / `WEKNORA_API_KEY` | WeKnora 地址与空间级 Key（需 manage_kbs 能力） | 空 |
 | `WEKNORA_TENANT_ID` | WeKnora 空间 ID（X-Tenant-ID） | 空 |
@@ -40,6 +42,10 @@ mvn spring-boot:run              # 默认端口 8020（WECOM_SYNC_PORT），自�
 ## 接口
 
 JSON 字段统一 snake_case。错误体统一为 `{"error": "<code>", "message": "..."}`。
+
+> 除 `GET /identity/me` 外，所有 `/identity/**` 管理端点都要求请求头
+> `X-Admin-Token: <IDENTITY_ADMIN_TOKEN>`。默认 `IDENTITY_REQUIRE_ADMIN_TOKEN=true`，
+> 未配置令牌时管理端点直接 403（fail-closed），不会因为“内网不可达”而裸奔。
 
 ### `POST /identity/sync` 触发同步
 

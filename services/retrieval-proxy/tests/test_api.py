@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from retrieval_proxy.app import create_app, get_service
 from retrieval_proxy.audit import InMemoryAuditSink
+from retrieval_proxy.backends import BackendError
 from retrieval_proxy.service import RetrievalService
 
 PRINCIPAL = {
@@ -71,6 +72,24 @@ def test_接口层同样不泄露越权文档() -> None:
     assert resp.status_code == 200
     for name in UNAUTHORIZED_DOC_NAMES:
         assert name not in resp.text
+
+
+class _RaisingBackend:
+    def retrieve(self, query):  # noqa: ANN001 - 测试桩
+        raise BackendError("内部细节：/secret/path")
+
+
+def test_后端错误只回503且不回显原文() -> None:
+    app = create_app()
+    app.dependency_overrides[get_service] = lambda: RetrievalService(
+        _RaisingBackend(), InMemoryAuditSink()
+    )
+    resp = TestClient(app).post(
+        "/retrieval/search",
+        json={"query": "q", "principal": PRINCIPAL, "kb_scope": ["kb_finance"]},
+    )
+    assert resp.status_code == 503
+    assert "secret" not in resp.text
 
 
 def test_非法密级入参被拒绝() -> None:

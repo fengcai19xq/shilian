@@ -10,9 +10,17 @@ interface Props {
   pending: boolean
   onSelectModel: (model: string) => void
   onSend: (text: string) => void
+  onUploadChecklist: (file: File) => void
 }
 
-export default function Composer({ models, selectedModel, pending, onSelectModel, onSend }: Props) {
+export default function Composer({
+  models,
+  selectedModel,
+  pending,
+  onSelectModel,
+  onSend,
+  onUploadChecklist,
+}: Props) {
   const [text, setText] = useState('')
 
   const submit = () => {
@@ -25,6 +33,20 @@ export default function Composer({ models, selectedModel, pending, onSelectModel
     <div className={styles.composer}>
       <ModelSelector models={models} selectedModel={selectedModel} onSelect={onSelectModel} />
       <div className={styles.row}>
+        <label className={styles.upload}>
+          上传清单
+          <input
+            type="file"
+            aria-label="上传清单"
+            accept=".xlsx,.xlsm,.txt"
+            disabled={pending}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onUploadChecklist(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
         <textarea
           className={styles.input}
           aria-label="输入问题"

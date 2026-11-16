@@ -20,7 +20,7 @@ src/gateway/
   config.py           加载 conf/*.yaml：密级策略、模型目录、预算、脱敏词表
   router.py           密级路由 + preferred_model 降级 + switched_reason
   masking.py          L3 实体脱敏与还原
-  usage.py            按 dept+purpose+model 记账，80% 告警 / 100% 降级
+  usage.py            按 dept+purpose+model 记账，80% 告警 / 100% 降级；可选 SQLite 持久化
   clients/            统一客户端接口、OpenAI 兼容实现、测试用 fake
   service.py          编排：路由 → 脱敏 → 调用 → 还原 → 记账
   api.py              FastAPI：POST /v1/invoke、GET /healthz
@@ -54,6 +54,8 @@ curl -s localhost:8009/v1/invoke -H 'content-type: application/json' -d '{
   "payload": {"prompt": "示例客户甲的报价是多少"}
 }'
 ```
+
+预算账本默认在内存；设置 `GATEWAY_USAGE_DB_PATH` 指向 SQLite 文件后跨重启保留（单机/单进程；多副本请换 PostgreSQL/Redis）。
 
 替换配置：构造 `GatewayService(routing_config=load_routing_config(path), masking_config=load_masking_config(path))`，
 或在部署时用 `app.dependency_overrides[get_service]` 注入。

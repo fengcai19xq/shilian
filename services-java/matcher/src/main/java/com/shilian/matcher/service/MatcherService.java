@@ -16,6 +16,7 @@ import com.shilian.matcher.model.ScoredCandidate;
 import com.shilian.matcher.model.TypeStatus;
 import com.shilian.matcher.port.CandidateProvider;
 import com.shilian.matcher.port.DecideProvider;
+import com.shilian.matcher.port.RetrievalPrincipal;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -57,6 +58,10 @@ public class MatcherService {
         return store;
     }
 
+    public Checklist getChecklist(String checklistId) {
+        return checklist(checklistId);
+    }
+
     // ---------- 上传解析 ----------
 
     public Checklist upload(byte[] content, String filename, String title, String operator) throws IOException {
@@ -88,12 +93,18 @@ public class MatcherService {
 
     /** 执行匹配任务。接口层放到后台执行，测试里可直接同步调用。 */
     public MatchTask runTask(String taskId) {
+        return runTask(taskId, null);
+    }
+
+    /** 执行匹配任务，带权限主体（WK18）。principal 为 null 时走无权限上下文的桩实现。 */
+    public MatchTask runTask(String taskId, RetrievalPrincipal principal) {
         MatchTask task = store.getTask(taskId);
         if (task == null) {
             throw new NotFoundException(taskId);
         }
         Checklist checklist = checklist(task.getChecklistId());
         task.setState(MatchTask.RUNNING);
+        store.persist();
         try {
             for (ChecklistItem item : checklist.items()) {
                 ItemResult prev = store.getResult(checklist.checklistId(), item.itemId());
@@ -101,7 +112,11 @@ public class MatcherService {
                     // 人工确认过的项不被机器结果覆盖
                     task.getResults().add(prev);
                 } else {
-                    ItemResult result = Scoring.scoreItem(item, candidates.recall(item), decide, config.scoring());
+                    List<com.shilian.matcher.model.CandidateDoc> candidates =
+                            principal != null
+                                    ? this.candidates.recall(item, principal)
+                                    : this.candidates.recall(item);
+                    ItemResult result = Scoring.scoreItem(item, candidates, decide, config.scoring());
                     store.putResult(checklist.checklistId(), result);
                     store.addAudit(checklist.checklistId(), "item_status_changed", item.itemId(), "system",
                             detail("from", prev != null ? prev.status().value() : null,
@@ -111,14 +126,17 @@ public class MatcherService {
                     task.getResults().add(result);
                 }
                 task.incrementDone();
+                store.persist();
             }
             task.setState(MatchTask.SUCCEEDED);
+            store.persist();
         } catch (Exception e) {
             // 任务失败需要落状态而不是抛给后台线程
             task.setState(MatchTask.FAILED);
             task.setError(e.getClass().getSimpleName() + ": " + e.getMessage());
             store.addAudit(checklist.checklistId(), "match_task_failed", null, "system",
                     detail("task_id", task.getTaskId(), "error", task.getError()));
+            store.persist();
         }
         return task;
     }
@@ -147,6 +165,15 @@ public class MatcherService {
         List<String> ids = docIds == null ? List.of() : List.copyOf(new LinkedHashSet<>(docIds));
         String safeNote = note == null ? "" : note;
         ItemResult prev = store.getResult(checklist.checklistId(), itemId);
+        if (!ids.isEmpty()) {
+            if (prev == null) {
+                throw new StateException("该项尚未匹配，不能绑定候选文档");
+            }
+            List<String> allowed = prev.candidates().stream().map(ScoredCandidate::docId).toList();
+            if (!allowed.containsAll(ids)) {
+                throw new StateException("只能绑定本次匹配候选中、且在你的权限范围内的文档");
+            }
+        }
         ItemStatus newStatus = ids.isEmpty() ? ItemStatus.MISSING : ItemStatus.MATCHED;
         ItemResult result = new ItemResult(item.itemId(), item.no(), item.stdType(), item.stdName(), newStatus,
                 prev != null ? prev.score() : 0.0, prev != null ? prev.candidates() : List.of(), ids, operator,

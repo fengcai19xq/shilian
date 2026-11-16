@@ -12,12 +12,21 @@ from decide.models import Principal
 class ProbeResult:
     """探测检索结果。只保留路由需要的信息，不透传越权文档内容。"""
 
-    __slots__ = ("scope_desc", "top_score", "total")
+    __slots__ = ("scope_desc", "top_score", "total", "available")
 
-    def __init__(self, top_score: float | None, total: int, scope_desc: str | None = None) -> None:
+    def __init__(
+        self,
+        top_score: float | None,
+        total: int,
+        scope_desc: str | None = None,
+        *,
+        available: bool = True,
+    ) -> None:
         self.top_score = top_score
         self.total = total
         self.scope_desc = scope_desc
+        # False 表示检索服务不可用，而不是「检索到 0 条」；两者不能混为一谈。
+        self.available = available
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> ProbeResult:

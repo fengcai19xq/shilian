@@ -13,6 +13,7 @@ KB 名 / 标签名需先解析为 WeKnora 的 id；解析不出来的部分**直
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 import httpx
@@ -44,6 +45,7 @@ class WeKnoraClient:
         tenant_id: str = "",
         timeout: float = 30.0,
         transport: httpx.BaseTransport | None = None,
+        cache_ttl_seconds: float = 60.0,
     ) -> None:
         headers = {"X-API-Key": api_key}
         if tenant_id:
@@ -53,8 +55,11 @@ class WeKnoraClient:
         )
         self._kb_ids: dict[str, str] = {}
         self._tag_ids: dict[str, str] = {}
-        # 标签索引只拉一次：空空间（没有任何可授权 tag）也是确定的事实
-        self._tags_loaded = False
+        # KB / tag 索引带 TTL：新建的库或项目标签不能要求重启服务才可见。
+        # 空索引同样缓存，避免空空间每次检索都打一次列表接口。
+        self._cache_ttl_seconds = max(0.0, cache_ttl_seconds)
+        self._kb_loaded_at: float | None = None
+        self._tags_loaded_at: float | None = None
 
     @classmethod
     def from_env(cls) -> WeKnoraClient:
@@ -62,7 +67,13 @@ class WeKnoraClient:
         api_key = os.environ.get("WEKNORA_API_KEY", "")
         if not base_url or not api_key:
             raise RuntimeError("缺少环境变量 WEKNORA_BASE_URL / WEKNORA_API_KEY")
-        return cls(base_url, api_key, tenant_id=os.environ.get("WEKNORA_TENANT_ID", ""))
+        ttl = os.environ.get("WEKNORA_CACHE_TTL_SECONDS", "").strip()
+        return cls(
+            base_url,
+            api_key,
+            tenant_id=os.environ.get("WEKNORA_TENANT_ID", ""),
+            cache_ttl_seconds=float(ttl) if ttl else 60.0,
+        )
 
     # ---- 协议入口 ----
 
@@ -127,13 +138,16 @@ class WeKnoraClient:
         KB 名里存的是 dept 的 slug（中文不可逆），故用 slug(dept) 反查 principal.dept
         的展示名；slug 不唯一的极端情况下退化为「无法确定部门」→ 剔除该 KB，宁缺勿错。
         """
-        if not self._kb_ids:
+        if self._cache_expired(self._kb_loaded_at):
             listed = self._get("/api/v1/knowledge-bases")
             rows = listed.get("data", []) if isinstance(listed, dict) else listed
+            refreshed: dict[str, str] = {}
             for row in rows or []:
                 name, rid = str(row.get("name", "")), str(row.get("id", ""))
                 if name and rid:
-                    self._kb_ids[name] = rid
+                    refreshed[name] = rid
+            self._kb_ids = refreshed
+            self._kb_loaded_at = time.monotonic()
 
         slug_to_dept: dict[str, str] = {}
         for dept in depts:
@@ -163,27 +177,34 @@ class WeKnoraClient:
         return ids, meta
 
     def _resolve_tags(self, names: list[str]) -> list[str]:
-        if not self._tags_loaded:
+        if self._cache_expired(self._tags_loaded_at):
             self._load_tag_index()
         return [self._tag_ids[n] for n in names if n in self._tag_ids]
+
+    def _cache_expired(self, loaded_at: float | None) -> bool:
+        if loaded_at is None:
+            return True
+        return (time.monotonic() - loaded_at) >= self._cache_ttl_seconds
 
     def _load_tag_index(self) -> None:
         """遍历已解析出的 KB，收集 tag 名 → id。
 
         tag 是 KB 级资源，无全局列表接口；这里按可见 KB 聚合并缓存。
-        用 _tags_loaded 标记「已拉取过」而非「非空」：空标签空间同样是确定事实，
-        否则每次检索都会重拉一遍索引。
+        用时间戳标记「已拉取过」而非「非空」：空标签空间同样是确定事实，
+        并按 TTL 过期刷新，避免新建标签必须重启服务才可见。
         """
+        refreshed: dict[str, str] = {}
         for kb_id in self._kb_ids.values():
             data = self._get(f"/api/v1/knowledge-bases/{kb_id}/tags", ok_on_error=True)
             rows = data.get("data", []) if isinstance(data, dict) else data
             for row in rows or []:
                 name, tid = str(row.get("name", "")), str(row.get("id", ""))
                 if name and tid:
-                    self._tag_ids[name] = tid
-        self._tags_loaded = True
-        if len(self._tag_ids) > _CACHE_MAX:
-            self._tag_ids = dict(list(self._tag_ids.items())[-_CACHE_MAX:])
+                    refreshed[name] = tid
+        if len(refreshed) > _CACHE_MAX:
+            refreshed = dict(list(refreshed.items())[-_CACHE_MAX:])
+        self._tag_ids = refreshed
+        self._tags_loaded_at = time.monotonic()
 
     # ---- 底层 ----
 

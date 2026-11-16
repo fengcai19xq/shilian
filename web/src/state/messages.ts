@@ -53,6 +53,13 @@ export interface TaskCardMessage {
   task: MatcherTask
 }
 
+/** 提示消息：例如引导用户上传清单 */
+export interface NoticeMessage {
+  kind: 'notice'
+  id: string
+  text: string
+}
+
 /** 5. 权限拒答：不得出现任何越权文档名 */
 export interface PermissionDeniedMessage {
   kind: 'permission_denied'
@@ -72,5 +79,6 @@ export type Message =
   | NoHitMessage
   | GeneralMessage
   | TaskCardMessage
+  | NoticeMessage
   | PermissionDeniedMessage
   | ErrorMessage

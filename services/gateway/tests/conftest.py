@@ -45,6 +45,6 @@ def make_request(
         purpose=purpose,
         sensitivity=sensitivity,
         preferred_model=preferred_model,
-        principal=Principal(user_id="u_10231", dept=[dept]),
+        principal=Principal(user_id="u_10231", dept=[dept], max_sensitivity="L4"),
         payload=payload if payload is not None else {"prompt": "介绍一下储能系统"},
     )

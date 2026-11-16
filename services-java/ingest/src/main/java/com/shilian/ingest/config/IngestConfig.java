@@ -7,9 +7,14 @@ import com.shilian.ingest.ragflow.FakeRagflowClient;
 import com.shilian.ingest.ragflow.HttpRagflowClient;
 import com.shilian.ingest.ragflow.HttpWeKnoraClient;
 import com.shilian.ingest.ragflow.RagflowClient;
+import com.shilian.ingest.store.DocumentStorage;
 import com.shilian.ingest.store.InMemoryDocumentRepository;
+import com.shilian.ingest.store.LocalDocumentStorage;
+import com.shilian.ingest.store.NoopDocumentStorage;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.concurrent.Executor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -18,8 +23,17 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 public class IngestConfig {
 
     @Bean
-    public InMemoryDocumentRepository documentRepository() {
-        return new InMemoryDocumentRepository();
+    public InMemoryDocumentRepository documentRepository(
+            @Value("${ingest.store.path:}") String storePath) {
+        return new InMemoryDocumentRepository(
+                storePath == null || storePath.isBlank() ? null : Path.of(storePath));
+    }
+
+    @Bean
+    public DocumentStorage documentStorage(@Value("${ingest.file-store.path:}") String fileStorePath) {
+        return fileStorePath == null || fileStorePath.isBlank()
+                ? new NoopDocumentStorage()
+                : new LocalDocumentStorage(Path.of(fileStorePath));
     }
 
     @Bean

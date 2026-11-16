@@ -4,6 +4,7 @@ import { ApiHttpError, useApi } from '../api'
 import {
   NO_SCOPE_DESC,
   type GatewayResponse,
+  type MatcherTask,
   type ModelOption,
   type Principal,
   type RetrievalHit,
@@ -52,6 +53,19 @@ function describeError(error: unknown): string {
   return '服务暂不可用，请稍后重试'
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** 轮询 matcher 任务；mock 没有 state 时立即返回。生产最多等待约 30 秒。 */
+async function waitForTask(api: ReturnType<typeof useApi>, taskId: string): Promise<MatcherTask> {
+  let task = await api.getMatcherTask(taskId)
+  for (let i = 0; i < 60; i++) {
+    if (!task.state || task.state === 'succeeded' || task.state === 'failed') return task
+    await sleep(500)
+    task = await api.getMatcherTask(taskId)
+  }
+  return task
+}
+
 export function useWorkbench() {
   const api = useApi()
   const [principal, setPrincipal] = useState<Principal | null>(null)
@@ -97,7 +111,7 @@ export function useWorkbench() {
     [conversationId, models],
   )
 
-  /** 通用问答：直接走网关，不带 principal（身份只由 X-User-Id 头承载），不携带任何公司数据 */
+  /** 通用问答：直接走 BFF，不携带 principal 与任何公司数据；身份由 BFF 会话解析 */
   const answerGeneral = useCallback(
     async (query: string) => {
       const answer = await api.generate({
@@ -116,7 +130,6 @@ export function useWorkbench() {
     async (query: string) => {
       const result = await api.search({
         query,
-        principal: principal ?? undefined,
         kb_scope: KB_SCOPE,
         top_k: SEARCH_TOP_K,
         score_threshold: SEARCH_SCORE_THRESHOLD,
@@ -131,11 +144,11 @@ export function useWorkbench() {
         return
       }
       const context = selectContext(result.hits)
+      // principal 由 BFF 从会话注入；前端只传问题与检索片段
       const answer = await api.generate({
         purpose: 'generate',
         sensitivity: highestSensitivity(context),
         preferred_model: selectedModel,
-        principal: principal ? { user_id: principal.user_id, dept: principal.dept } : undefined,
         payload: { query, messages: buildEnterpriseMessages(query, context) },
       })
       append({
@@ -148,7 +161,7 @@ export function useWorkbench() {
         ...gatewayMeta(answer),
       })
     },
-    [api, append, principal, selectedModel],
+    [api, append, selectedModel],
   )
 
   /** 发送提问：先经 decide 路由；未命中只如实告知，绝不静默转通用模型 */
@@ -160,13 +173,15 @@ export function useWorkbench() {
       setPending(true)
       try {
         if (text.includes('清单') || text.includes('成册')) {
-          const task = await api.getMatcherTask('tk_0007')
-          append({ kind: 'task_card', id: nextId('m'), task })
+          append({
+            kind: 'notice',
+            id: nextId('m'),
+            text: '请点击输入框下方的「上传清单」，系统会解析清单并进入三态确认。',
+          })
           return
         }
         const route = await api.route({
           question: text,
-          principal: principal ?? undefined,
           user_choice: 'auto',
           kb_scope: KB_SCOPE,
         })
@@ -191,7 +206,69 @@ export function useWorkbench() {
         setPending(false)
       }
     },
-    [api, append, answerEnterprise, answerGeneral, principal],
+    [api, append, answerEnterprise, answerGeneral],
+  )
+
+  /** 上传清单 → 触发匹配 → 轮询任务 → 任务卡 */
+  const uploadChecklist = useCallback(
+    async (file: File) => {
+      setPending(true)
+      try {
+        const checklist = await api.uploadChecklist(file)
+        const run = await api.runChecklist(checklist.checklist_id)
+        const task = await waitForTask(api, run.task_id)
+        append({ kind: 'task_card', id: nextId('m'), task })
+      } catch (error) {
+        append({ kind: 'error', id: nextId('m'), text: describeError(error) })
+      } finally {
+        setPending(false)
+      }
+    },
+    [api, append],
+  )
+
+  const replaceTask = useCallback(
+    (messageId: string, task: MatcherTask) => {
+      setMessagesByConversation((prev) => ({
+        ...prev,
+        [conversationId]: (prev[conversationId] ?? []).map((m) =>
+          m.id === messageId && m.kind === 'task_card' ? { ...m, task } : m,
+        ),
+      }))
+    },
+    [conversationId],
+  )
+
+  /** 人工确认：只能绑定该清单项候选内的文档；空候选表示确认缺件。 */
+  const confirmTaskItem = useCallback(
+    async (messageId: string, task: MatcherTask, itemId: string, docIds: string[]) => {
+      setPending(true)
+      try {
+        await api.confirmItem(itemId, docIds)
+        replaceTask(messageId, await api.getMatcherTask(task.task_id))
+      } catch (error) {
+        append({ kind: 'error', id: nextId('m'), text: describeError(error) })
+      } finally {
+        setPending(false)
+      }
+    },
+    [api, append, replaceTask],
+  )
+
+  /** 成册：manifest 由 BFF 从 matcher 生成，浏览器不提交 manifest。 */
+  const packageTask = useCallback(
+    async (task: MatcherTask) => {
+      setPending(true)
+      try {
+        const result = await api.packageChecklist(task.checklist_id)
+        setRightPane({ mode: 'artifact', package_title: result.package_id || task.title })
+      } catch (error) {
+        append({ kind: 'error', id: nextId('m'), text: describeError(error) })
+      } finally {
+        setPending(false)
+      }
+    },
+    [api, append],
   )
 
   /** 用户二次确认后才调用通用模型 */
@@ -248,6 +325,9 @@ export function useWorkbench() {
     rightPane,
     pending,
     send,
+    uploadChecklist,
+    confirmTaskItem,
+    packageTask,
     selectModel,
     confirmGeneralFallback,
     openCitation,
