@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 target/
-
+.github/*
+.dockerignore/*
+.vscode/*
+.idea/*
 # 机房联调期间的一次性诊断 / 修复脚本：只在本地留档，不入库。
 # 其中 add_qwen.py、run_verify.py 等内联过联调用真实密钥与口令，禁止提交（红线：不硬编码密钥）。
 spike/weknora/add_qwen.py
